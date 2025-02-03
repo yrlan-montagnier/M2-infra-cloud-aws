@@ -55,9 +55,11 @@ Vérifier que la page par défaut du serveur web est accessible depuis un naviga
 
 **Livrables :**
 * Le tableau comparatif des types d'instances EC2 par région.
-    * :file_folder: [couts.xlsx](couts.xlsx)
+    * :file_folder: [Tableau_comparatif_coûts_AWS.xlsx](Tableau_comparatif_coûts_AWS.xlsx)
 * Un fichier texte contenant les informations de l'instance EC2 déployée.
+    * Voir ci-dessus (5. Récupération des informations)
 * Une capture d'écran de la page d'accueil du serveur web qui inclut l'adresse IP (ou FQDN) publique de l'instance EC2.
+    * Voir ci-dessus (4. Accès au serveur web)
 
 **Critères de validation :**
 * Le tableau est correctement formaté et contient des informations pertinentes (1 point).

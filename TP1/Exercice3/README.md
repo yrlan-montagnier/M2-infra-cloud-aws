@@ -31,12 +31,17 @@ Pour cette étape vous êtes libre de choisir le format de votre choix, cependan
 * Les screenshots nécessaires à la compréhension de la procédure.
 * Vous pouvez redéployer une instance EC2 pour vous aider à rédiger la procédure et/ou pour tester votre procédure mais n'oubliez pas de la supprimer une fois la procédure rédigée.
 
+# TP1 - Exercice3 - Report du déploiement
+
 ## Procédure de déploiement
-### 1. Se rendre sur le service EC2
+
+Temps global pour la procédure : 10min
+
+### 1. Se rendre sur le service EC2 (1min)
 Chercher et se rendre dans le service "EC2"
 ![image](https://github.com/user-attachments/assets/ffb3381c-7aa4-473d-8931-2a5990237226)
 
-### 2. Création de l'instance EC2
+### 2. Création de l'instance EC2 (5min)
 
 Cliquer sur "Launch Instance" pour accéder à la page de création d'une instance EC2 :
 ![image](https://github.com/user-attachments/assets/cbaa4239-43bf-45b1-a1e8-bd138a4cb770)
@@ -70,16 +75,18 @@ Laisser les options par défaut.
 ![image](https://github.com/user-attachments/assets/e55c6c11-85f3-4026-9de5-dbb75e00e964)
 
 #### Déployer l'instance
-Cliquer sur le bouton "Launch Instance"
+Cliquer sur le bouton "Launch Instance".
+
 ![image](https://github.com/user-attachments/assets/10ea70b2-1557-4b40-9c64-3b814e8d340e)
 
-### 3. Connexion à l'instance EC2
-Sélectionner l'instance dans la liste des instances
+### 3. Connexion à l'instance EC2 (1min)
+Sélectionner l'instance dans la liste des instances.
 ![image](https://github.com/user-attachments/assets/6a2ce7f3-910a-43f5-83d8-99371f8e3846)
 
 Cliquer sur "Connect" sur la page qui s'ouvre
 
-### 4. Déploiement du serveur web Apache2
+### 4. Déploiement du serveur web Apache2 (3min)
+
 ```
 sudo apt install apache2
 ```
@@ -89,7 +96,6 @@ Récupérer l'adresse IP publique de l'instance EC2, c'est celle-ci qui permettr
 ![image](https://github.com/user-attachments/assets/15d22ead-eb54-4b4f-a48a-72b18c62a5a1)
 
 ## Critères de validation
-    
 * l'instance EC2 initiale doit être supprimée (1 point).
 * le fichier de procédure contient toutes les informations nécessaires à la réalisation de la procédure (1 point).
 * le fichier de procédure contient les temps nécessaires pour réaliser chaque étape et le temps total (1 point).

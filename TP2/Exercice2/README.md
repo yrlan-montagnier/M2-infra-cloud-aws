@@ -53,7 +53,7 @@ Network ACL :
 * ID : `acl-0ee24aa0709474b35`
 * Nom (tag Name) : `ymontagnier-acl`
 * Règles entrantes : 
-J'autorise le SSH depuis le security-group du bastion.
+On bloque le SSH depuis le réseau qu'utilise AWS Instant Connect.
 ![alt text](./img/acl1.png)
 
 * Règles sortantes :

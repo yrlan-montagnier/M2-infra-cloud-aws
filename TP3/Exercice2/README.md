@@ -32,7 +32,7 @@ La région : `eu-north-1` (`Stockholm`)
 
 ```
 users:~/environment $ aws s3api create-bucket \
->     --bucket ymontagnier$(uuidgen | tr -d - | tr '[:upper:]' '[:lower:]' ) \
+>     --bucket ymontagnier \
 >     --region eu-north-1 \
 >     --create-bucket-configuration LocationConstraint=eu-north-1 \
 >     --profile formation-infra-cloud

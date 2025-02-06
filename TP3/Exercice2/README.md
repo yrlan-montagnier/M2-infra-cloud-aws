@@ -1,6 +1,21 @@
 # TP3 - Exercice 2 - AWS CLI - Créer un bucket S3
 
+## Contexte
+
+Dans ce TP, nous allons voir comment utiliser la CLI d'AWS pour interagir avec les services AWS.
+
+Notamment, nous allons voir comment créer un bucket S3.
+
+## Objectifs
+Créer un bucket S3 dans le compte AWS dédié à la formation en respectant certains critères.
+
+
 ## 1. Identifier la commande AWS CLI à utiliser
+
+À l'aide de la documentation de la CLI d'AWS, identifier la commande à utiliser pour créer un bucket S3.
+
+Cette commande devrait permettre de spécifier le nom du bucket et la région.
+
 ```
 aws s3api create-bucket \
     --bucket amzn-s3-demo-bucket1$(uuidgen | tr -d - | tr '[:upper:]' '[:lower:]' ) \
@@ -28,6 +43,11 @@ users:~/environment $ aws s3api create-bucket \
 ```
 
 ## 3. Ajouter un tag au bucket
+
+À l'aide de la documentation de la CLI d'AWS, identifier la commande à utiliser pour taguer le bucket créé.
+
+Il faudra ajouter un tag avec la clé `Owner` et la valeur `<username_aws>`.
+
 ```
 users:~/environment $ aws s3api put-bucket-tagging --bucket ymontagnier --profile formation-infra-cloud --tagging 'TagSet=[{Key=Owner,Value=ymontagnier}]'
 ```
@@ -46,6 +66,9 @@ users:~/environment $ aws s3api get-bucket-tagging --bucket ymontagnier --profil
 ```
 
 ## 4. Supprimer le bucket
+
+À l'aide de la documentation de la CLI d'AWS, identifier la commande à utiliser pour supprimer le bucket créé.
+
 ```
 users:~/environment $ aws s3api delete-bucket --bucket ymontagnier --profile formation-infra-cloud --region eu-north-1
 ```

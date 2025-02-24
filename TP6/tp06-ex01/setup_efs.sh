@@ -24,3 +24,6 @@ sudo mount -t efs -o tls $EFS_DNS:/ /mnt/efs
 # echo "$EFS_DNS:/ /mnt/efs nfs4 defaults,_netdev 0 0" | sudo tee -a /etc/fstab
 echo "$EFS_DNS:/ /mnt/efs efs tls" | sudo tee -a /etc/fstab
 sudo systemctl daemon-reload
+
+# Installation de MySQL
+sudo apt update && sudo apt install -y mysql-client

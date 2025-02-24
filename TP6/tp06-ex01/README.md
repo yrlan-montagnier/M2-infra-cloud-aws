@@ -171,7 +171,7 @@ mysql> SELECT * FROM test;
 #### 🛑 Déclenchement d'un failover
 
 Depuis AWS CLI :
-Redémarrage avec failover :  
+On force un redémarrage avec failover (`--force-failover`) :  
 ```sh
 PS C:\Users\yrlan\OneDrive - Ynov\01-Cours\Infra & SI\M2 - Infrastructure CLOUD AWS\M5-infra-cloud-aws\TP6\tp06-ex01> aws rds reboot-db-instance --db-instance-identifier ymontagnier-tp06-ex01-nextcloud-rds-instance --force-failover
 {
@@ -290,7 +290,7 @@ PS C:\Users\yrlan\OneDrive - Ynov\01-Cours\Infra & SI\M2 - Infrastructure CLOUD 
 ```
 
 Suivi du statut :  
-```sh
+```bash
 PS C:\Users\yrlan\OneDrive - Ynov\01-Cours\Infra & SI\M2 - Infrastructure CLOUD AWS\M5-infra-cloud-aws\TP6\tp06-ex01> aws rds describe-db-instances --db-instance-identifier ymontagnier-tp06-ex01-nextcloud-rds-instance --query "DBInstances[*].DBInstanceStatus"
 [
     "rebooting"
@@ -299,7 +299,7 @@ PS C:\Users\yrlan\OneDrive - Ynov\01-Cours\Infra & SI\M2 - Infrastructure CLOUD 
 
 #### 🕵️ Observation du comportement
 Pendant le failover, tester une requête :  
-```sh
+```bash
 ubuntu@ip-10-0-6-99:~$ mysql -h ymontagnier-tp06-ex01-nextcloud-rds-instance.c2oopr9eothp.eu-north-1.rds.amazonaws.com -u admin -p -e "SELECT * FROM nextcloud.test;"
 Enter password: 
 +----+-----------+
@@ -335,7 +335,7 @@ Confirmer la bascule vers une autre AZ sur AWS Console.
 Avant : 
 ![image](img/bascule.png)
 Après : 
-![image](img/bascule.png)
+![image](img/bascule2.png)
 
 # 4️⃣ 4. Documentation des Tests  
 

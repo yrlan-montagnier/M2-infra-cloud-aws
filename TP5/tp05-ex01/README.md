@@ -63,7 +63,7 @@ On crée le système de fichier en précisant :
 * `creation_token` : Pour créer une token de sécurité.
 * `encrypted = true` : Pour activer le chiffrement.
 * `performance_mode` : Pour préciser un mode de performance
-```
+```bash
 resource "aws_efs_file_system" "nextcloud_efs" {
   creation_token   = "nextcloud-efs-token"
   encrypted        = true
@@ -74,13 +74,13 @@ resource "aws_efs_file_system" "nextcloud_efs" {
 }
 ```
 Pour renvoyer le nom DNS du système de fichier EFS lors d'un plan ou apply par exemple :
-```
+```bash
 output "efs_dns_name" {
   value = aws_efs_file_system.nextcloud_efs.dns_name
 }
 ```
 Cibles de montage (une par subnet, a changer pour un foreach)
-```
+```bash
 resource "aws_efs_mount_target" "nextcloud_efs_target_a" {
   file_system_id  = aws_efs_file_system.nextcloud_efs.id
   subnet_id       = aws_subnet.private[0].id
@@ -97,6 +97,22 @@ resource "aws_efs_mount_target" "nextcloud_efs_target_c" {
   file_system_id  = aws_efs_file_system.nextcloud_efs.id
   subnet_id       = aws_subnet.private[2].id
   security_groups = [aws_security_group.nextcloud_sg.id]
+}
+```
+
+### Ajout d'une règle dans le security group
+```bash
+resource "aws_vpc_security_group_ingress_rule" "allow_ECS" {
+  security_group_id = aws_security_group.nextcloud_sg.id
+
+  cidr_ipv4   = "0.0.0.0/0"
+  from_port   = 2049
+  ip_protocol = "tcp"
+  to_port     = 2049
+
+  tags = {
+    Name = "Allow ECS"
+  }
 }
 ```
 

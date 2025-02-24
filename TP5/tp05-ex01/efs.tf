@@ -3,8 +3,12 @@ resource "aws_efs_file_system" "nextcloud_efs" {
   encrypted        = true
   performance_mode = "generalPurpose"
   tags = {
-    Name = "Nextcloud EFS"
+    Name = "${local.name}-EFS-Nextcloud"
   }
+}
+
+output "efs_dns_name" {
+  value = aws_efs_file_system.nextcloud_efs.dns_name
 }
 
 resource "aws_efs_mount_target" "nextcloud_efs_target_a" {

@@ -39,6 +39,19 @@ resource "aws_vpc_security_group_ingress_rule" "allow_ssh_from_cloud9_to_bastion
   }
 }
 
+resource "aws_vpc_security_group_ingress_rule" "allow_ssh_from_maison_to_bastion" {
+  security_group_id = aws_security_group.bastion_sg.id
+
+  cidr_ipv4   = "176.138.11.81/32"
+  from_port   = 22
+  ip_protocol = "tcp"
+  to_port     = 22
+
+  tags = {
+    Name = "Allow SSH depuis ma maison"
+  }
+}
+
 resource "aws_vpc_security_group_egress_rule" "allow_all_from_bastion" {
   security_group_id = aws_security_group.bastion_sg.id
   cidr_ipv4         = "0.0.0.0/0"

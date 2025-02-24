@@ -104,3 +104,26 @@ resource "aws_vpc_security_group_egress_rule" "allow_all_from_nextcloud" {
   ip_protocol       = "-1" # semantically equivalent to all ports
 }
 
+# -----------------------------------------------------------------------------
+# NextCloud_DB - RDS
+# -----------------------------------------------------------------------------
+
+resource "aws_security_group" "nextcloud_db_sg" {
+  name        = "${local.name}-nextcloud-db-sg"
+  description = "RDS Nextcloud"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port       = 3306
+    to_port         = 3306
+    protocol        = "tcp"
+    security_groups = [aws_security_group.nextcloud_sg.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}

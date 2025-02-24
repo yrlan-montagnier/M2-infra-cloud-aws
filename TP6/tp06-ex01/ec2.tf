@@ -21,6 +21,8 @@ resource "aws_instance" "nextcloud" {
     efs_dns = aws_efs_file_system.nextcloud_efs.dns_name
   })
 
+  depends_on = [aws_nat_gateway.public_nat]
+
   tags = {
     Name = "${local.name}-nextcloud"
   }

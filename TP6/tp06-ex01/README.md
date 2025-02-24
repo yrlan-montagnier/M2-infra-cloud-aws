@@ -1,416 +1,366 @@
-# TP5 - Exercice 1 - EFS/EIP/NAT Gateway
+# POC : Migration vers une base de données managée (Amazon RDS)
 
-## Contexte
-Votre infrastructure vouée à héberger l'application Nextcloud n'est pas encore en production, mais votre direction souhaite déjà valider sa capacité à résister à une panne d'une zone de disponibilité (AZ).
+## 🎯 Contexte
 
-Pour rappel, l'application Nextcloud est une solution open source de stockage et de partage de fichiers qui sera utilisée par l'ensemble des collaborateurs de l'entreprise; certains fichier qui y seront stockés sont critiques et ne doivent pas être perdus.
+Dans la configuration actuelle de votre infrastructure Nextcloud, la gestion de la base de données n'a pas été abordée et votre travail précédent sur EFS a mis en évidence la nécessité de disposer d'une solution de stockage de données fiable, performante et pouvant prendre en charge l'indisponibilité d'une zone de disponibilité.
 
-On vous demande donc de réaliser un POC (Proof of Concept) pour permettre de restaurer rapidement le service dans une autre AZ tout en conservant les données.
+En préparation de la mise en production, votre direction souhaite valider la possibilité d'utiliser Amazon RDS pour gérer la base de données.
 
-Pour cela, on vous demande d'ajouter à votre infrastructure existante un système de fichiers EFS qui permettra de :
+On vous demande donc de réaliser un second POC pour :
+* Déployer une instance RDS MySQL compatible avec Nextcloud
+* Valider les aspects de sécurité et de connectivité
+* Tester la haute disponibilité de la base de données
 
-* Conserver les données même en cas de perte d'une AZ
-* Permettre une reprise rapide sur une autre AZ
+## 🔧 Contraintes
 
-Les contraintes sont les suivantes :
+- Déploiement via Terraform
+- L'instance RDS doit être déployée dans les sous-réseaux privés
+- L'instance RDS doit être accessible uniquement depuis les instances EC2 Nextcloud
+- L'instance RDS doit être configurée pour pouvoir supporter un failover sur une autre zone de disponibilité
 
-* L'infrastructure doit être déployée via Terraform
-* Le système de fichiers EFS doit être chiffré au repos
-* Le système de fichiers EFS doit être accessible uniquement depuis les sous-réseaux privés
-* Seules les instances EC2 attachées au security group "nextcloud" doivent avoir accès au système de fichiers EFS
-* Le montage du système de fichiers sur les EC2 nextcloud doit être automatisé via un script de démarrage (user data)
+Comme il s'agit d'un POC on vous demandera de configurer une instance RDS de petite taille (`db.t4g.micro`) et de ne pas vous soucier de la gestion des backups, des logs, ou autres paramètres avancés.
 
-## Objectifs
-* Étendre l'infrastructure Terraform existante pour inclure EFS
-* Configurer une instance EC2 pour utiliser ce système de fichiers
-* Tester la persistance des données en cas de panne d'AZ
-* Documenter la procédure de test et ses résultats
+## 📌 Objectifs
 
-## Configuration de l'instance EC2
-### Création d'un script user data pour automatiser le montage EFS
+- Étendre l'infrastructure Terraform pour inclure Amazon RDS.
+- Configurer une instance RDS MySQL compatible avec Nextcloud et qui respecte les contraintes imposées.
+- Restreindre l'accès uniquement aux instances EC2 Nextcloud.
+- Tester la haute disponibilité en simulant une panne d'AZ et vérifier le comportement.
 
-> :file_folder: setup_efs.sh
-```bash
-#!/bin/bash
-sudo apt-get update
-sudo apt-get install -y nfs-common
 
-# Définition du DNS de l'EFS 
-# ${efs_dns} remplace la valeur par celle passée en argument dans le fichier ec2.tf
-EFS_DNS="${efs_dns}"
+---
 
-# Création du point de montage
-sudo mkdir -p /mnt/efs
+## 🛠 Étapes de réalisation
 
-# Montage du système de fichiers
-sudo mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport $EFS_DNS:/ /mnt/efs
+### 1️⃣ Extension de l'infrastructure Terraform
 
-# Ajout à fstab pour persistance après redémarrage
-echo "$EFS_DNS:/ /mnt/efs nfs4 defaults,_netdev 0 0" | sudo tee -a /etc/fstab
-```
+#### Documentations
+Liste des pages de documentation Terraform qui pourraient vous être utiles :
+* [DB Subnet Group](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_subnet_group)
+* [RDS Instance](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_instance)
 
-### Activation de la résolution DNS sur le VPC
-L'EFS sera accessible via une entrée DNS; pour que les instances EC2 puissent résoudre ce DNS il faut activer l'option enable_dns_hostnames sur le VPC.
+#### 📌 Analyse de compatibilité
 
-:file_folder: `vpc.yaml`
-```bash
-enable_dns_hostnames = true
-```
+Nextcloud est compatible avec MySQL 5.7+ et MariaDB 10+. RDS MySQL répond donc aux exigences.
 
-### Création d'un système de fichier EFS et des cibles de montage.
+> Pour ce POC on ne se souciera pas, pour le moment, de la gestion des users, passwords et autres secrets.
 
-On crée le système de fichier en précisant : 
-* `creation_token` : Pour créer une token de sécurité.
-* `encrypted = true` : Pour activer le chiffrement.
-* `performance_mode` : Pour préciser un mode de performance
-```bash
-resource "aws_efs_file_system" "nextcloud_efs" {
-  creation_token   = "nextcloud-efs-token"
-  encrypted        = true
-  performance_mode = "generalPurpose"
+#### 🏗 Ajout d'une ressource RDS
+
+Création d'un fichier `rds.tf` avec :
+
+```hcl
+resource "aws_db_instance" "nextcloud_db" {
+  identifier             = "nextcloud-rds"
+  engine                = "mysql"
+  engine_version        = "8.0"
+  instance_class        = "db.t4g.micro"
+  allocated_storage     = 20
+  storage_type          = "gp2"
+  username             = "admin"
+  password             = "Password123!"
+  db_subnet_group_name  = aws_db_subnet_group.nextcloud_rds_subnet.id
+  vpc_security_group_ids = [aws_security_group.nextcloud_db_sg.id]
+  multi_az             = true
+  publicly_accessible  = false
+  skip_final_snapshot  = true
   tags = {
-    Name = "${local.name}-EFS-Nextcloud"
-  }
-}
-```
-Pour renvoyer le nom DNS du système de fichier EFS lors d'un plan ou apply par exemple :
-```bash
-output "efs_dns_name" {
-  value = aws_efs_file_system.nextcloud_efs.dns_name
-}
-```
-Cibles de montage (une par subnet, a changer pour un foreach)
-```bash
-resource "aws_efs_mount_target" "nextcloud_efs_target_a" {
-  file_system_id  = aws_efs_file_system.nextcloud_efs.id
-  subnet_id       = aws_subnet.private[0].id
-  security_groups = [aws_security_group.nextcloud_sg.id]
-}
-
-resource "aws_efs_mount_target" "nextcloud_efs_target_b" {
-  file_system_id  = aws_efs_file_system.nextcloud_efs.id
-  subnet_id       = aws_subnet.private[1].id
-  security_groups = [aws_security_group.nextcloud_sg.id]
-}
-
-resource "aws_efs_mount_target" "nextcloud_efs_target_c" {
-  file_system_id  = aws_efs_file_system.nextcloud_efs.id
-  subnet_id       = aws_subnet.private[2].id
-  security_groups = [aws_security_group.nextcloud_sg.id]
-}
-```
-
-### Ajout d'une règle dans le security group
-```bash
-resource "aws_vpc_security_group_ingress_rule" "allow_ECS" {
-  security_group_id = aws_security_group.nextcloud_sg.id
-
-  cidr_ipv4   = "0.0.0.0/0"
-  from_port   = 2049
-  ip_protocol = "tcp"
-  to_port     = 2049
-
-  tags = {
-    Name = "Allow ECS"
+    Name = "nextcloud-rds"
   }
 }
 ```
 
-### Ajout d'une EIP dans le VPC pour la NAT Gateway
-La NAT Gateway
-```bash
-resource "aws_eip" "nat_eip" {
-  domain = "vpc"
+#### 🌐 Création du groupe de sous-réseaux privés pour les RDS
 
-  tags = {
-    Name = "Public NAT EIP"
+```hcl
+resource "aws_db_subnet_group" "nextcloud_rds_subnet" {
+  name       = "nextcloud-rds-subnet"
+  subnet_ids = [aws_subnet.private[0].id, aws_subnet.private[1].id, aws_subnet.private[2].id]
+}
+```
+
+#### 🔐 Sécurisation avec un Security Group
+
+```hcl
+resource "aws_security_group" "nextcloud_db_sg" {
+  name        = "nextcloud-db-sg"
+  description = "Contrôle l'accès à RDS Nextcloud"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 3306
+    to_port     = 3306
+    protocol    = "tcp"
+    security_groups = [aws_security_group.nextcloud_sg.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 ```
 
-### Ajout d'une NAT Gateway
-On crée une seule NAT Gateway dans le subnet public.
-```
-resource "aws_nat_gateway" "public_nat" {
-  allocation_id = aws_eip.nat_eip.id         # Associer l'EIP créée
-  subnet_id     = aws_subnet.public[0].id    # Choisir le subnet public
-  depends_on    = [aws_internet_gateway.igw] # S'assurer que l'IGW est actif
+---
 
-  tags = {
-    Name = "${local.name}-NAT-Gateway"
-  }
-}
+### 2️⃣ Test de connectivité
+
+#### 🚀 Installation du client MySQL
+
+Sur l'instance EC2 Nextcloud :
+
+```sh
+sudo apt update && sudo apt install -y mysql-client
 ```
 
-### Utiliser la NAT Gateway en route par défaut pour les subnets privés
+Vérification :
+```sh
+mysql --version
 ```
-resource "aws_route_table" "private" {
-  for_each = { for idx, subnet in local.private_subnets_cidrs : idx => subnet }
+#### 🔌 Connexion à la base de données
 
-  vpc_id = aws_vpc.main.id
-
-  route {
-    cidr_block     = "0.0.0.0/0"                   # Tout le trafic sortant
-    nat_gateway_id = aws_nat_gateway.public_nat.id # Utilise la NAT Gateway
-  }
-
-  tags = {
-    Name = "${local.name}-private-rtb-${local.azs[each.key]}"
-  }
-}
-```
-
-### Mise à jour de la configuration Terraform de l'instance EC2 pour inclure le script user data
-
-**Explications :**
-* `subnet_id` : Changer le `subnet_id` permet de changer l'availability zone dans laquelle se trouvera l'instance NextCloud. Pourra servir à vérifier que les données sont bien disponibles s'il y'a un crash d'une zone.
-* `user_data` : L'utilisation de `templatefile` permet de passer un script bash au démarrage de l'instance, utilisant une variable `efs_dns` qui est propre à Terraform.
 ```bash
-resource "aws_instance" "nextcloud" {
-  ami                    = "ami-09a9858973b288bdd"
-  instance_type          = "t3.micro"
-  subnet_id              = aws_subnet.private[1].id # Changer cette ligne pour changer l'AZ
-  key_name               = "${local.name}-nextcloud-key"
-  vpc_security_group_ids = [aws_security_group.nextcloud_sg.id]
-  # user_data              = file("setup_efs.sh")
-  user_data = templatefile("setup_efs.sh", {
-    efs_dns = aws_efs_file_system.nextcloud_efs.dns_name
-  })
+ubuntu@ip-10-0-6-99:/efs-utils$ mysql -h ymontagnier-tp06-ex01-nextcloud-rds-instance.c2oopr9eothp.eu-north-1.rds.amazonaws.com  -u admin -p
+Enter password:
+Welcome to the MySQL monitor.  Commands end with ; or \g.
+Your MySQL connection id is 32
+Server version: 8.0.40 Source distribution
 
-  tags = {
-    Name = "${local.name}-nextcloud"
-  }
-}
+Copyright (c) 2000, 2025, Oracle and/or its affiliates.
+
+Oracle is a registered trademark of Oracle Corporation and/or its
+affiliates. Other names may be trademarks of their respective
+owners.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
 ```
 
-### Logs user-data
-> Tips : On peut récupérer les logs du script passé dans le user data sur l'instance NextCloud.
->
-> Cela permet de vérifier la sortie du script, nottement le fais que la variable $EFS_DNS soit bien remplacée par la valeur correspondant à l'EFS qui doit être associé à l'instance.
-```bash
-sudo cat /var/lib/cloud/instance/user-data.txt
-#!/bin/bash
-sudo apt-get update
-sudo apt-get install -y nfs-common
+#### 📝 Test de création/lecture de données
 
-# Définition du DNS de l'EFS 
-# fs-0e84015b258fd4c10.efs.eu-north-1.amazonaws.com remplace la valeur par celle passée en argument dans le fichier ec2.tf
-EFS_DNS="fs-0e84015b258fd4c10.efs.eu-north-1.amazonaws.com"
+Une fois connecté :
+```sql
+mysql> CREATE DATABASE nextcloud;
+Query OK, 1 row affected (0.01 sec)
 
-# Création du point de montage
-sudo mkdir -p /mnt/efs
+mysql> use nextcloud
+Database changed
+mysql> CREATE TABLE test (id INT PRIMARY KEY, name VARCHAR(50));
+ test VALUES (1, 'Nextcloud');
 
-# Montage du système de fichiers
-sudo mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport $EFS_DNS:/ /mnt/efs
+SELECT * FROMQuery OK, 0 rows affected (0.07 sec)
 
-# Ajout à fstab pour persistance après redémarrage
-echo "$EFS_DNS:/ /mnt/efs nfs4 defaults,_netdev 0 0" | sudo tee -a /etc/fstabubuntu@ip-10-0-5-188:~$
+mysql> INSERT INTO test VALUES (1, 'Nextcloud');
+ test;Query OK, 1 row affected (0.00 sec)
+
+mysql>
+mysql> SELECT * FROM test;
++----+-----------+
+| id | name      |
++----+-----------+
+|  1 | Nextcloud |
++----+-----------+
+1 row in set (0.00 sec)
 ```
 
-### Configuration fichier SSH
-![alt text](img/ssh_config.png)
+---
 
-### Logs cloud-init :
-```bash
-/var/log/cloud-init.log
-/var/log/cloud-init-output.log
-```
+### 3️⃣ Test de haute disponibilité
 
-### Vérifier que le système de fichier EFS est monté
-```bash
-ubuntu@ip-10-0-5-244:~$ df -h | grep aws
-fs-05548ed18b881d2c5.efs.eu-north-1.amazonaws.com:/  8.0E     0  8.0E   0% /mnt/efs
-```
+#### 🛑 Déclenchement d'un failover
 
-## Test de bascule
-### Test de création d'un fichier dans le système de fichiers EFS depuis l'instance EC2.
-```bash
-ubuntu@ip-10-0-5-244:/mnt/efs$ sudo mkdir Dossier1 Dossier2 Dossier3
-ubuntu@ip-10-0-5-244:/mnt/efs$ sudo touch Dossier1/test1.txt Dossier2/test2.txt Dossier3/test3.txt
-```
-
-### Suppression de l'instance EC2 (simulation de panne d'AZ)
-Dans le fichier `ec2.yaml`, je change le `subnet_id` puis je lance un terraform apply pour déployer l'instance Nextcloud dans un autre subnet.
-```
-resource "aws_instance" "nextcloud" {
-  ami                    = "ami-09a9858973b288bdd"
-  instance_type          = "t3.micro"
-  subnet_id              = aws_subnet.private[0].id # Changer cette ligne pour changer l'AZ
-```
-
-### Déploiement d'une nouvelle instance dans une autre AZ
-```bash
-Terraform will perform the following actions:
-
-  # aws_instance.nextcloud must be replaced
--/+ resource "aws_instance" "nextcloud" {
-      ~ arn                                  = "arn:aws:ec2:eu-north-1:134400125759:instance/i-086b32833ddaeb76d" -> (known after apply)
-      ~ associate_public_ip_address          = false -> (known after apply)
-      ~ availability_zone                    = "eu-north-1b" -> (known after apply)
-      ~ cpu_core_count                       = 1 -> (known after apply)
-      ~ cpu_threads_per_core                 = 2 -> (known after apply)
-      ~ disable_api_stop                     = false -> (known after apply)
-      ~ disable_api_termination              = false -> (known after apply)
-      ~ ebs_optimized                        = false -> (known after apply)
-      + enable_primary_ipv6                  = (known after apply)
-      - hibernation                          = false -> null
-      + host_id                              = (known after apply)
-      + host_resource_group_arn              = (known after apply)
-      + iam_instance_profile                 = (known after apply)
-      ~ id                                   = "i-086b32833ddaeb76d" -> (known after apply)
-      ~ instance_initiated_shutdown_behavior = "stop" -> (known after apply)
-      + instance_lifecycle                   = (known after apply)
-      ~ instance_state                       = "running" -> (known after apply)
-      ~ ipv6_address_count                   = 0 -> (known after apply)
-      ~ ipv6_addresses                       = [] -> (known after apply)
-      ~ monitoring                           = false -> (known after apply)
-      + outpost_arn                          = (known after apply)
-      + password_data                        = (known after apply)
-      + placement_group                      = (known after apply)
-      ~ placement_partition_number           = 0 -> (known after apply)
-      ~ primary_network_interface_id         = "eni-05115965f1ea6d3af" -> (known after apply)
-      ~ private_dns                          = "ip-10-0-5-244.eu-north-1.compute.internal" -> (known after apply)
-      ~ private_ip                           = "10.0.5.244" -> (known after apply)
-      + public_dns                           = (known after apply)
-      + public_ip                            = (known after apply)
-      ~ secondary_private_ips                = [] -> (known after apply)
-      ~ security_groups                      = [] -> (known after apply)
-      + spot_instance_request_id             = (known after apply)
-      ~ subnet_id                            = "subnet-0756457ca468b298f" -> "subnet-0a640ad991ea4362b" # forces replacement
-        tags                                 = {
-            "Name" = "ymontagnier-tp05-ex01-nextcloud"
-        }
-      ~ tenancy                              = "default" -> (known after apply)
-      + user_data_base64                     = (known after apply)
-        # (9 unchanged attributes hidden)
-
-      ~ capacity_reservation_specification (known after apply)
-      - capacity_reservation_specification {
-          - capacity_reservation_preference = "open" -> null
-        }
-
-      ~ cpu_options (known after apply)
-      - cpu_options {
-          - core_count       = 1 -> null
-          - threads_per_core = 2 -> null
-            # (1 unchanged attribute hidden)
-        }
-
-      - credit_specification {
-          - cpu_credits = "unlimited" -> null
-        }
-
-      ~ ebs_block_device (known after apply)
-
-      ~ enclave_options (known after apply)
-      - enclave_options {
-          - enabled = false -> null
-        }
-
-      ~ ephemeral_block_device (known after apply)
-
-      ~ instance_market_options (known after apply)
-
-      ~ maintenance_options (known after apply)
-      - maintenance_options {
-          - auto_recovery = "default" -> null
-        }
-
-      ~ metadata_options (known after apply)
-      - metadata_options {
-          - http_endpoint               = "enabled" -> null
-          - http_protocol_ipv6          = "disabled" -> null
-          - http_put_response_hop_limit = 2 -> null
-          - http_tokens                 = "required" -> null
-          - instance_metadata_tags      = "disabled" -> null
-        }
-
-      ~ network_interface (known after apply)
-
-      ~ private_dns_name_options (known after apply)
-      - private_dns_name_options {
-          - enable_resource_name_dns_a_record    = false -> null
-          - enable_resource_name_dns_aaaa_record = false -> null
-          - hostname_type                        = "ip-name" -> null
-        }
-
-      ~ root_block_device (known after apply)
-      - root_block_device {
-          - delete_on_termination = true -> null
-          - device_name           = "/dev/sda1" -> null
-          - encrypted             = false -> null
-          - iops                  = 3000 -> null
-          - tags                  = {
-              - "Name"  = "ymontagnier-tp05-ex01"
-              - "Owner" = "ymontagnier"
-            } -> null
-          - tags_all              = {
-              - "Name"  = "ymontagnier-tp05-ex01"
-              - "Owner" = "ymontagnier"
-            } -> null
-          - throughput            = 125 -> null
-          - volume_id             = "vol-02c37527201a4ea95" -> null
-          - volume_size           = 8 -> null
-          - volume_type           = "gp3" -> null
-            # (1 unchanged attribute hidden)
-        }
+Depuis AWS CLI :
+Redémarrage avec failover :  
+```sh
+PS C:\Users\yrlan\OneDrive - Ynov\01-Cours\Infra & SI\M2 - Infrastructure CLOUD AWS\M5-infra-cloud-aws\TP6\tp06-ex01> aws rds reboot-db-instance --db-instance-identifier ymontagnier-tp06-ex01-nextcloud-rds-instance --force-failover
+{
+    "DBInstance": {
+        "DBInstanceIdentifier": "ymontagnier-tp06-ex01-nextcloud-rds-instance",
+        "DBInstanceClass": "db.t4g.micro",
+        "Engine": "mysql",
+        "DBInstanceStatus": "rebooting",
+        "MasterUsername": "admin",
+        "Endpoint": {
+            "Address": "ymontagnier-tp06-ex01-nextcloud-rds-instance.c2oopr9eothp.eu-north-1.rds.amazonaws.com",
+            "Port": 3306,
+            "HostedZoneId": "Z3MPDEQW7KHUGY"
+        },
+        "AllocatedStorage": 10,
+        "InstanceCreateTime": "2025-02-24T14:38:13.974000+00:00",
+        "PreferredBackupWindow": "00:04-00:34",
+        "BackupRetentionPeriod": 0,
+        "DBSecurityGroups": [],
+        "VpcSecurityGroups": [
+            {
+                "VpcSecurityGroupId": "sg-014b6f9ce39b42427",
+                "Status": "active"
+            }
+        ],
+        "DBParameterGroups": [
+            {
+                "DBParameterGroupName": "default.mysql8.0",
+                "ParameterApplyStatus": "in-sync"
+            }
+        ],
+        "AvailabilityZone": "eu-north-1c",
+        "DBSubnetGroup": {
+            "DBSubnetGroupName": "ymontagnier-tp06-ex01-nextcloud-rds-subnet",
+            "DBSubnetGroupDescription": "Managed by Terraform",
+            "VpcId": "vpc-03dadc02db23ce24b",
+            "SubnetGroupStatus": "Complete",
+            "Subnets": [
+                {
+                    "SubnetIdentifier": "subnet-0d843dc45f803f854",
+                    "SubnetAvailabilityZone": {
+                        "Name": "eu-north-1b"
+                    },
+                    "SubnetOutpost": {},
+                    "SubnetStatus": "Active"
+                },
+                {
+                    "SubnetIdentifier": "subnet-0fabf02f41f2f7211",
+                    "SubnetAvailabilityZone": {
+                        "Name": "eu-north-1a"
+                    },
+                    "SubnetOutpost": {},
+                    "SubnetStatus": "Active"
+                },
+                {
+                    "SubnetIdentifier": "subnet-08dab066efbe7e7cb",
+                    "SubnetAvailabilityZone": {
+                        "Name": "eu-north-1c"
+                    },
+                    "SubnetOutpost": {},
+                    "SubnetStatus": "Active"
+                }
+            ]
+        },
+        "PreferredMaintenanceWindow": "sat:00:59-sat:01:29",
+        "PendingModifiedValues": {},
+        "MultiAZ": true,
+        "EngineVersion": "8.0.40",
+        "AutoMinorVersionUpgrade": true,
+        "ReadReplicaDBInstanceIdentifiers": [],
+        "LicenseModel": "general-public-license",
+        "OptionGroupMemberships": [
+            {
+                "OptionGroupName": "default:mysql-8-0",
+                "Status": "in-sync"
+            }
+        ],
+        "SecondaryAvailabilityZone": "eu-north-1b",
+        "PubliclyAccessible": false,
+        "StorageType": "gp2",
+        "DbInstancePort": 0,
+        "StorageEncrypted": false,
+        "DbiResourceId": "db-SMWUJQX3U4B3WIPW3CLLX7XXMY",
+        "CACertificateIdentifier": "rds-ca-rsa2048-g1",
+        "DomainMemberships": [],
+        "CopyTagsToSnapshot": false,
+        "MonitoringInterval": 0,
+        "DBInstanceArn": "arn:aws:rds:eu-north-1:134400125759:db:ymontagnier-tp06-ex01-nextcloud-rds-instance",
+        "IAMDatabaseAuthenticationEnabled": false,
+        "DatabaseInsightsMode": "standard",
+        "PerformanceInsightsEnabled": false,
+        "DeletionProtection": false,
+        "AssociatedRoles": [],
+        "TagList": [
+            {
+                "Key": "Owner",
+                "Value": "ymontagnier"
+            },
+            {
+                "Key": "Name",
+                "Value": "ymontagnier-tp06-ex01-nextcloud-rds-instance"
+            }
+        ],
+        "CustomerOwnedIpEnabled": false,
+        "BackupTarget": "region",
+        "NetworkType": "IPV4",
+        "StorageThroughput": 0,
+        "CertificateDetails": {
+            "CAIdentifier": "rds-ca-rsa2048-g1",
+            "ValidTill": "2026-02-24T14:37:23+00:00"
+        },
+        "DedicatedLogVolume": false,
+        "EngineLifecycleSupport": "open-source-rds-extended-support"
     }
-
-Plan: 1 to add, 0 to change, 1 to destroy.
-
-Do you want to perform these actions?
-  Terraform will perform the actions described above.
-  Only 'yes' will be accepted to approve.
-
-  Enter a value: yes
-  
-aws_instance.nextcloud: Destroying... [id=i-086b32833ddaeb76d]
-aws_instance.nextcloud: Still destroying... [id=i-086b32833ddaeb76d, 10s elapsed]
-aws_instance.nextcloud: Still destroying... [id=i-086b32833ddaeb76d, 20s elapsed]
-aws_instance.nextcloud: Still destroying... [id=i-086b32833ddaeb76d, 30s elapsed]
-aws_instance.nextcloud: Still destroying... [id=i-086b32833ddaeb76d, 40s elapsed]
-aws_instance.nextcloud: Destruction complete after 41s
-aws_instance.nextcloud: Creating...
-aws_instance.nextcloud: Still creating... [10s elapsed]
-aws_instance.nextcloud: Creation complete after 13s [id=i-0bed10fc5d10719dc]
-
-Apply complete! Resources: 1 added, 0 changed, 1 destroyed.
-
-Outputs:
-
-efs_dns_name = "fs-05548ed18b881d2c5.efs.eu-north-1.amazonaws.com"
+}
 ```
 
-### Vérification de l'accès aux données précédemment créées
-```bash
-PS C:\Users\yrlan\OneDrive - Ynov\01-Cours\Infra & SI\M2 - Infrastructure CLOUD AWS\M5-infra-cloud-aws\TP5\tp05-ex01> ssh nextcloud
-The authenticity of host '10.0.4.249 (<no hostip for proxy command>)' can't be established.
-ED25519 key fingerprint is SHA256:O5pLkeYczPP7Rg3i25Y1ut93QUGwpG2cgw6FDAL+ALM.
-This key is not known by any other names.
-Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
-Warning: Permanently added '10.0.4.249' (ED25519) to the list of known hosts.
-
-ubuntu@ip-10-0-4-249:~$ df -h
-Filesystem                                           Size  Used Avail Use% Mounted on
-/dev/root                                            6.8G  1.9G  4.8G  29% /
-tmpfs                                                458M     0  458M   0% /dev/shm
-tmpfs                                                183M  908K  182M   1% /run
-tmpfs                                                5.0M     0  5.0M   0% /run/lock
-efivarfs                                             128K  3.6K  120K   3% /sys/firmware/efi/efivars
-/dev/nvme0n1p16                                      881M   76M  744M  10% /boot
-/dev/nvme0n1p15                                      105M  6.1M   99M   6% /boot/efi
-fs-05548ed18b881d2c5.efs.eu-north-1.amazonaws.com:/  8.0E     0  8.0E   0% /mnt/efs
-tmpfs                                                 92M   12K   92M   1% /run/user/1000
-ubuntu@ip-10-0-4-249:~$ ls -l /mnt/efs/*
-/mnt/efs/Dossier1:
-total 4
--rw-r--r-- 1 root root 0 Feb 24 09:56 test1.txt
-
-/mnt/efs/Dossier2:
-total 4
--rw-r--r-- 1 root root 0 Feb 24 09:56 test2.txt
-
-/mnt/efs/Dossier3:
-total 4
--rw-r--r-- 1 root root 0 Feb 24 09:56 test3.txt
+Suivi du statut :  
+```sh
+PS C:\Users\yrlan\OneDrive - Ynov\01-Cours\Infra & SI\M2 - Infrastructure CLOUD AWS\M5-infra-cloud-aws\TP6\tp06-ex01> aws rds describe-db-instances --db-instance-identifier ymontagnier-tp06-ex01-nextcloud-rds-instance --query "DBInstances[*].DBInstanceStatus"
+[
+    "rebooting"
+]
 ```
+
+#### 🕵️ Observation du comportement
+Pendant le failover, tester une requête :  
+```sh
+ubuntu@ip-10-0-6-99:~$ mysql -h ymontagnier-tp06-ex01-nextcloud-rds-instance.c2oopr9eothp.eu-north-1.rds.amazonaws.com -u admin -p -e "SELECT * FROM nextcloud.test;"
+Enter password: 
++----+-----------+
+| id | name      |
++----+-----------+
+|  1 | Nextcloud |
++----+-----------+
+```
+
+> Notes : On vois que les données sont quand même accessibles
+
+#### ✅ Vérification de l’intégrité des données  
+Pour vérifier que le RDS est de nouveau disponible, on relance la commande : 
+```
+PS C:\Users\yrlan\OneDrive - Ynov\01-Cours\Infra & SI\M2 - Infrastructure CLOUD AWS\M5-infra-cloud-aws\TP6\tp06-ex01> aws rds describe-db-instances --db-instance-identifier ymontagnier-tp06-ex01-nextcloud-rds-instance --query "DBInstances[*].DBInstanceStatus"
+[
+    "available"
+]
+```
+
+Une fois RDS de nouveau `available`, relancer :  
+```sh
+ubuntu@ip-10-0-6-99:~$ mysql -h ymontagnier-tp06-ex01-nextcloud-rds-instance.c2oopr9eothp.eu-north-1.rds.amazonaws.com -u admin -p -e "SELECT * FROM nextcloud.test;"
+Enter password: 
++----+-----------+
+| id | name      |
++----+-----------+
+|  1 | Nextcloud |
++----+-----------+
+```
+
+Confirmer la bascule vers une autre AZ sur AWS Console.
+Avant : 
+![image](img/bascule.png)
+Après : 
+![image](img/bascule.png)
+
+# 4️⃣ 4. Documentation des Tests  
+
+## 📝 Test de connectivité  
+
+| Test | Résultat |
+|------|---------|
+| Installation client MySQL | ✅ Succès |
+| Connexion à RDS | ✅ Succès |
+| Lecture/écriture de données | ✅ Succès |
+
+## 📝 Test de failover  
+
+| Test | Résultat |
+|------|---------|
+| Reboot forcé avec failover | ✅ Succès |
+| Changement de zone de dispo | ✅ Succès |
+| Intégrité des données | ✅ Succès |
+
+---
+
+## 📌 Conclusion
+
+- ✅ **Amazon RDS est bien compatible avec Nextcloud**  
+- ✅ **La sécurité réseau est bien configurée (accès EC2 uniquement)**  
+- ✅ **La haute disponibilité fonctionne comme prévu (failover validé)**  
+
+🚀 **Le POC est validé pour une mise en production !**

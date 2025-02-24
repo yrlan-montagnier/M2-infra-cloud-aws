@@ -13,7 +13,7 @@ resource "aws_instance" "bastion" {
 resource "aws_instance" "nextcloud" {
   ami                    = "ami-09a9858973b288bdd"
   instance_type          = "t3.micro"
-  subnet_id              = aws_subnet.private[1].id     # Changer cette ligne pour changer l'AZ
+  subnet_id              = aws_subnet.private[0].id # Changer cette ligne pour changer l'AZ
   key_name               = "${local.name}-nextcloud-key"
   vpc_security_group_ids = [aws_security_group.nextcloud_sg.id]
   # user_data              = file("setup_efs.sh")

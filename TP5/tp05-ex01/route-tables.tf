@@ -12,13 +12,13 @@ resource "aws_route_table" "public" {
 }
 
 resource "aws_route_table_association" "public" {
-  count          = length(local.public_subnets_cidrs)
-  subnet_id      = aws_subnet.public[count.index].id
+  for_each       = { for idx, subnet in aws_subnet.public : idx => subnet }
+  subnet_id      = each.value.id
   route_table_id = aws_route_table.public.id
 }
 
 resource "aws_route_table" "private" {
-  count = length(local.private_subnets_cidrs)
+  for_each = { for idx, subnet in local.private_subnets_cidrs : idx => subnet }
 
   vpc_id = aws_vpc.main.id
 
@@ -28,12 +28,12 @@ resource "aws_route_table" "private" {
   }
 
   tags = {
-    Name = "${local.name}-private-rtb-${local.azs[count.index]}"
+    Name = "${local.name}-private-rtb-${local.azs[each.key]}"
   }
 }
 
 resource "aws_route_table_association" "private" {
-  count          = length(local.private_subnets_cidrs)
-  subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private[count.index].id
+  for_each       = { for idx, subnet in local.private_subnets_cidrs : idx => subnet }
+  subnet_id      = aws_subnet.private[each.key].id
+  route_table_id = aws_route_table.private[each.key].id
 }

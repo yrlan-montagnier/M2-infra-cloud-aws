@@ -18,14 +18,14 @@ resource "aws_route_table" "public" {
 
 # Associer la table de routage publique avec les sous-réseaux publics
 resource "aws_route_table_association" "public" {
-  for_each       = { for idx, subnet in aws_subnet.public : idx => subnet }
+  for_each       = aws_subnet.public
   subnet_id      = each.value.id
   route_table_id = aws_route_table.public.id
 }
 
 # Créer une table de routage pour chaque sous-réseaux privés
 resource "aws_route_table" "private" {
-  for_each = { for idx, subnet in local.private_subnets_cidrs : idx => subnet }
+  for_each = local.private_subnet
 
   vpc_id = aws_vpc.main.id
 
@@ -35,13 +35,13 @@ resource "aws_route_table" "private" {
   }
 
   tags = {
-    Name = "${local.name}-private-rtb-${local.azs[each.key]}"
+    Name = "${local.name}-private-rtb-${each.key}"
   }
 }
 
 # Associer la table de routage privée avec chaque sous-réseaux privés
 resource "aws_route_table_association" "private" {
-  for_each       = { for idx, subnet in local.private_subnets_cidrs : idx => subnet }
-  subnet_id      = aws_subnet.private[each.key].id
+  for_each       = aws_subnet.private
+  subnet_id      = each.value.id
   route_table_id = aws_route_table.private[each.key].id
 }

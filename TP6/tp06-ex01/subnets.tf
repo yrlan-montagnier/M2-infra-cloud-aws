@@ -1,24 +1,26 @@
-# Cette configuration crée des sous-réseaux publics et privés dans le VPC.
-
-# Création des sous-réseaux publics
+# Subnets publics
 resource "aws_subnet" "public" {
-  for_each          = local.public_subnet
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = each.value
-  availability_zone = each.key
+  for_each = { for idx, cidr in local.public_subnets_cidrs : idx => cidr }
+
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = each.value
+  availability_zone       = local.azs[each.key]
+  map_public_ip_on_launch = true
+
   tags = {
-    Name = "${local.name}-public-${each.key}"
+    Name = "${local.name}-public-${local.azs[each.key]}"
   }
 }
 
-
-# Création des sous-réseaux privés
+# Subnets privés
 resource "aws_subnet" "private" {
-  for_each          = local.private_subnet
+  for_each = { for idx, cidr in local.private_subnets_cidrs : idx => cidr }
+
   vpc_id            = aws_vpc.main.id
-  cidr_block        = each.value.cidr
-  availability_zone = each.value.az
+  cidr_block        = each.value
+  availability_zone = local.azs[each.key]
+
   tags = {
-    Name = "${local.name}-private-${each.value.az}"
+    Name = "${local.name}-private-${local.azs[each.key]}"
   }
 }

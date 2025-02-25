@@ -1,3 +1,8 @@
+# Ce fichier contient la configuration Terraform pour créer des tables de routage pour les sous-réseaux publics et privés.
+# Les sous-réseaux publics sont associés à une table de routage qui redirige tout le trafic sortant vers une passerelle internet.
+# Les sous-réseaux privés sont associés à une table de routage qui redirige tout le trafic sortant vers une NAT Gateway.
+
+# Créer une table de routage pour les sous-réseaux publics
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -11,12 +16,14 @@ resource "aws_route_table" "public" {
   }
 }
 
+# Associer la table de routage publique avec les sous-réseaux publics
 resource "aws_route_table_association" "public" {
   for_each       = { for idx, subnet in aws_subnet.public : idx => subnet }
   subnet_id      = each.value.id
   route_table_id = aws_route_table.public.id
 }
 
+# Créer une table de routage pour les sous-réseaux privés
 resource "aws_route_table" "private" {
   for_each = { for idx, subnet in local.private_subnets_cidrs : idx => subnet }
 
@@ -32,6 +39,7 @@ resource "aws_route_table" "private" {
   }
 }
 
+# Associer la table de routage privée avec les sous-réseaux privés
 resource "aws_route_table_association" "private" {
   for_each       = { for idx, subnet in local.private_subnets_cidrs : idx => subnet }
   subnet_id      = aws_subnet.private[each.key].id

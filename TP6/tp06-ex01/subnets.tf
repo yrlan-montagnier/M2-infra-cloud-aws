@@ -1,4 +1,10 @@
-# Subnets publics
+# Cette configuration crée des sous-réseaux publics et privés dans une VPC.
+
+# Création des sous-réseaux publics
+# vpc_id: ID de la VPC
+# cidr_block: On utilise un for_each pour créer un sous-réseau par élément de la liste local.public_subnets_cidrs.
+# availability_zone: On utilise la variable local.azs pour déterminer l'AZ de chaque sous-réseau.
+# map_public_ip_on_launch: On active l'option map_public_ip_on_launch pour permettre aux instances de recevoir une adresse IP publique.
 resource "aws_subnet" "public" {
   for_each = { for idx, cidr in local.public_subnets_cidrs : idx => cidr }
 
@@ -12,7 +18,10 @@ resource "aws_subnet" "public" {
   }
 }
 
-# Subnets privés
+# Création des sous-réseaux privés
+# vpc_id: ID de la VPC
+# cidr_block: On utilise un for_each pour créer un sous-réseau par élément de la liste local.private_subnets_cidrs.
+# availability_zone: On utilise la variable local.azs pour déterminer l'AZ de chaque sous-réseau.
 resource "aws_subnet" "private" {
   for_each = { for idx, cidr in local.private_subnets_cidrs : idx => cidr }
 

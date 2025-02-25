@@ -1,3 +1,6 @@
+# Ce fichier contient la configuration Terraform pour créer une instance RDS MySQL.
+# Cette instance sera utilisée par Nextcloud pour stocker ses données.
+
 resource "aws_db_instance" "nextcloud_db" {
   identifier             = "${local.name}-nextcloud-rds-instance"
   engine                 = "mysql"
@@ -16,6 +19,7 @@ resource "aws_db_instance" "nextcloud_db" {
   }
 }
 
+# Créer un groupe de sous-réseaux pour la base de données RDS
 resource "aws_db_subnet_group" "nextcloud_rds_subnet" {
   name       = "${local.name}-nextcloud-rds-subnet"
   subnet_ids = [aws_subnet.private[0].id, aws_subnet.private[1].id, aws_subnet.private[2].id]

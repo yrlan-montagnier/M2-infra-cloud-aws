@@ -57,6 +57,37 @@ L'EFS sera accessible via une entrée DNS; pour que les instances EC2 puissent r
 enable_dns_hostnames = true
 ```
 
+### Création d'un Security Group pour l'EFS
+```bash
+# Créer un security group pour l'EFS
+resource "aws_security_group" "efs_sg" {
+  name        = "${local.name}-efs-sg"
+  description = "Security group for Nextcloud EFS"
+  vpc_id      = aws_vpc.main.id
+
+  tags = {
+    Name = "${local.name}-nextcloud-efs-sg"
+  }
+}
+```
+
+### Ajout d'une règle dans le security group
+```bash
+# Autoriser uniquement Nextcloud à accéder à EFS sur le port 2049
+resource "aws_vpc_security_group_ingress_rule" "allow_nfs_from_nextcloud" {
+  security_group_id = aws_security_group.efs_sg.id
+
+  referenced_security_group_id = aws_security_group.nextcloud_sg.id
+  from_port                    = 2049
+  ip_protocol                  = "tcp"
+  to_port                      = 2049
+
+  tags = {
+    Name = "Allow NFS access from Nextcloud SG"
+  }
+}
+```
+
 ### Création d'un système de fichier EFS et des cibles de montage.
 
 On crée le système de fichier en précisant : 
@@ -79,42 +110,18 @@ output "efs_dns_name" {
   value = aws_efs_file_system.nextcloud_efs.dns_name
 }
 ```
-Cibles de montage (une par subnet, a changer pour un foreach)
+Création des "Mount Target"
 ```bash
-resource "aws_efs_mount_target" "nextcloud_efs_target_a" {
-  file_system_id  = aws_efs_file_system.nextcloud_efs.id
-  subnet_id       = aws_subnet.private[0].id
-  security_groups = [aws_security_group.nextcloud_sg.id]
-}
+# Créer un mount target pour chaque subnet privé
+resource "aws_efs_mount_target" "nextcloud_efs_targets" {
+  for_each = { for idx, subnet in aws_subnet.private : idx => subnet.id }
 
-resource "aws_efs_mount_target" "nextcloud_efs_target_b" {
   file_system_id  = aws_efs_file_system.nextcloud_efs.id
-  subnet_id       = aws_subnet.private[1].id
-  security_groups = [aws_security_group.nextcloud_sg.id]
-}
-
-resource "aws_efs_mount_target" "nextcloud_efs_target_c" {
-  file_system_id  = aws_efs_file_system.nextcloud_efs.id
-  subnet_id       = aws_subnet.private[2].id
-  security_groups = [aws_security_group.nextcloud_sg.id]
+  subnet_id       = each.value
+  security_groups = [aws_security_group.efs_sg.id]
 }
 ```
 
-### Ajout d'une règle dans le security group
-```bash
-resource "aws_vpc_security_group_ingress_rule" "allow_ECS" {
-  security_group_id = aws_security_group.nextcloud_sg.id
-
-  cidr_ipv4   = "0.0.0.0/0"
-  from_port   = 2049
-  ip_protocol = "tcp"
-  to_port     = 2049
-
-  tags = {
-    Name = "Allow ECS"
-  }
-}
-```
 
 ### Ajout d'une EIP dans le VPC pour la NAT Gateway
 La NAT Gateway
@@ -142,8 +149,13 @@ resource "aws_nat_gateway" "public_nat" {
 }
 ```
 
-### Utiliser la NAT Gateway en route par défaut pour les subnets privés
+On peut également demander à l'instance NextCloud d'attendre que la NAT Gateway soit déployée pour être certain que le script userData soit passé correctement au démarrage (nécessite le réseau) : 
+```bash
+  depends_on = [aws_nat_gateway.public_nat]
 ```
+
+### Utiliser la NAT Gateway en route par défaut pour les subnets privés
+```bash
 resource "aws_route_table" "private" {
   for_each = { for idx, subnet in local.private_subnets_cidrs : idx => subnet }
 

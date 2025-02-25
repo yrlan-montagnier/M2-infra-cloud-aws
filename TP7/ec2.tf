@@ -20,11 +20,10 @@ resource "aws_instance" "bastion" {
 resource "aws_instance" "nextcloud" {
   ami                    = "ami-09a9858973b288bdd"
   instance_type          = "t3.micro"
-  subnet_id              = aws_subnet.private["a"].id # Changer cette ligne pour changer l'AZ
+  subnet_id              = aws_subnet.private["a"].id           # Changer cette ligne pour changer l'AZ
   key_name               = aws_key_pair.nextcloud.key_name      # Utiliser la paire de clés nextcloud
   vpc_security_group_ids = [aws_security_group.nextcloud_sg.id] # Utiliser le groupe de sécurité nextcloud_sg
   user_data              = local.nextcloud_userdata             # Utiliser le script de démarrage généré dans locals.tf
-
 
   # user_data = templatefile("setup_efs.sh", {             # Utiliser un script de démarrage pour monter le système de fichiers EFS
   #   efs_dns = aws_efs_file_system.nextcloud_efs.dns_name # Passer le nom DNS du système de fichiers EFS au script de démarrage

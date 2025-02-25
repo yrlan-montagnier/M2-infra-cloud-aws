@@ -5,10 +5,14 @@ export DEBIAN_FRONTEND=noninteractive
 # Update the package repository
 sudo apt-get update
 
+# Install the AWS CLI v2
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+
 # Install necessary packages
 sudo apt-get install -y \
     apache2 \
-    awscli \
     libapache2-mod-php \
     mysql-client \
     nfs-common \
@@ -90,8 +94,12 @@ else
     mount --bind /mnt/efs/nextcloud/data /data/www/nextcloud/data
 fi
 
+# Add the EFS mount to /etc/fstab to mount it automatically at boot
 echo '/mnt/efs/nextcloud/config /data/www/nextcloud/config none _netdev,noatime,bind,defaults 0 0' | sudo tee -a /etc/fstab
 echo '/mnt/efs/nextcloud/data /data/www/nextcloud/data none _netdev,noatime,bind,defaults 0 0' | sudo tee -a /etc/fstab
+
+# Redémarrez le démon systemd pour recharger les unités et les fichiers de configuration (fstab)
+sudo systemctl daemon-reload
 
 # Configure Apache
 sudo sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf

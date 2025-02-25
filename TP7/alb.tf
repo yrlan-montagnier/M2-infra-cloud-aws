@@ -1,16 +1,19 @@
 # Création de l'ALB
 resource "aws_lb" "nextcloud" {
-  name               = "nextcloud-alb"
+  name               = "ymontagnier-nextcloud-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
-  # subnets            = [for s in aws_subnet.public : s.id] # Liste des sous-réseaux publics
-  subnets            = aws_subnet.public[each.key].id # Liste des sous-réseaux publics
+  subnets            = [for s in aws_subnet.public : s.id] # Liste des sous-réseaux publics
+
+  tags = {
+    Name = "${local.name}-nextcloud-alb"
+  }
 }
 
 # Création du groupe cible pour Nextcloud
 resource "aws_lb_target_group" "nextcloud" {
-  name     = "nextcloud-tg"
+  name     = "ymontagnier-nextcloud-alb-tg"
   port     = 80
   protocol = "HTTP"
   vpc_id   = aws_vpc.main.id
@@ -21,6 +24,10 @@ resource "aws_lb_target_group" "nextcloud" {
     timeout             = 5
     healthy_threshold   = 3
     unhealthy_threshold = 3
+  }
+
+    tags = {
+    Name = "${local.name}-nextcloud-alb-tg"
   }
 }
 
@@ -37,6 +44,7 @@ resource "aws_lb_listener" "http" {
   port              = 80
   protocol          = "HTTP"
 
+  # Redirection vers HTTPS
   default_action {
     type = "redirect"
     redirect {
@@ -44,5 +52,10 @@ resource "aws_lb_listener" "http" {
       protocol    = "HTTPS"
       status_code = "HTTP_301"
     }
+  }
+
+  # Tags
+  tags = {
+    Name = "${local.name}-nextcloud-alb-http-listener"
   }
 }

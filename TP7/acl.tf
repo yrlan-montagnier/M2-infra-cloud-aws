@@ -42,7 +42,7 @@ resource "aws_network_acl" "acl" {
 
 # Association de l'ACL avec les subnets publics
 resource "aws_network_acl_association" "public_acl_assoc" {
-  for_each       = aws_subnet.private
+  for_each       = aws_subnet.public
   network_acl_id = aws_network_acl.acl.id
   subnet_id      = each.value.id
 }

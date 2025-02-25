@@ -35,7 +35,7 @@ resource "aws_route_table" "private" {
   }
 
   tags = {
-    Name = "${local.name}-private-rtb-${each.key}"
+    Name = "${local.name}-private-rtb-${each.value.az}"
   }
 }
 

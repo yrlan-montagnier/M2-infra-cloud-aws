@@ -15,33 +15,33 @@ locals {
   vpc_cidr = "10.0.0.0/16" # Définition du CIDR du VPC
 
   public_subnet = {
-  a = {
-    az   = "eu-north-1a"
-    cidr = "10.0.1.0/24"
-  }
-  b = {
-    az   = "eu-north-1b"
-    cidr = "10.0.2.0/24"
-  }
-  c = {
-    az   = "eu-north-1c"
-    cidr = "10.0.3.0/24"
-  }
+    a = {
+      az   = "eu-north-1a"
+      cidr = "10.0.1.0/24"
+    }
+    b = {
+      az   = "eu-north-1b"
+      cidr = "10.0.2.0/24"
+    }
+    c = {
+      az   = "eu-north-1c"
+      cidr = "10.0.3.0/24"
+    }
   }
 
   private_subnet = {
-  a = {
-    az   = "eu-north-1a"
-    cidr = "10.0.4.0/24"
-  }
-  b = {
-    az   = "eu-north-1b"
-    cidr = "10.0.5.0/24"
-  }
-  c = {
-    az   = "eu-north-1c"
-    cidr = "10.0.6.0/24"
-  }
+    a = {
+      az   = "eu-north-1a"
+      cidr = "10.0.4.0/24"
+    }
+    b = {
+      az   = "eu-north-1b"
+      cidr = "10.0.5.0/24"
+    }
+    c = {
+      az   = "eu-north-1c"
+      cidr = "10.0.6.0/24"
+    }
   }
 
   # Generate the user data for the Nextcloud instance
@@ -55,10 +55,12 @@ locals {
       fqdn    = aws_route53_record.nextcloud.fqdn,
   })
 
+  # Syntaxe d'origine
   # public_subnets_cidrs  = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"] # Définition des CIDRs des subnets publics
   # private_subnets_cidrs = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"] # Définition des CIDRs des subnets privés
   # azs                   = ["eu-north-1a", "eu-north-1b", "eu-north-1c"] # Définition des AZs
 
+  # Syntaxe clé / Valeur
   # public_subnet = {
   #   "eu-north-1a" = "10.0.1.0/24"
   #   "eu-north-1b" = "10.0.2.0/24"

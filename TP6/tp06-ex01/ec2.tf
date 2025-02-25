@@ -21,9 +21,9 @@ resource "aws_instance" "nextcloud" {
   ami                    = "ami-09a9858973b288bdd"
   instance_type          = "t3.micro"
   subnet_id              = aws_subnet.private[0].id # Changer cette ligne pour changer l'AZ
-  key_name               = aws_key_pair.nextcloud.key_name 
+  key_name               = aws_key_pair.nextcloud.key_name
   vpc_security_group_ids = [aws_security_group.nextcloud_sg.id]
-  user_data = templatefile("setup_efs.sh", { # Utiliser un script de démarrage pour monter le système de fichiers EFS
+  user_data = templatefile("setup_efs.sh", {             # Utiliser un script de démarrage pour monter le système de fichiers EFS
     efs_dns = aws_efs_file_system.nextcloud_efs.dns_name # Passer le nom DNS du système de fichiers EFS au script de démarrage
   })
 

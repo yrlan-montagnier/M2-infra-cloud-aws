@@ -426,3 +426,20 @@ total 4
 total 4
 -rw-r--r-- 1 root root 0 Feb 24 09:56 test3.txt
 ```
+
+## Conclusion du POC : Mise en place d'un système de fichiers hautement disponible
+Ce POC avait pour objectif de valider la capacité de l'infrastructure à assurer la disponibilité des données stockées dans Nextcloud en cas de panne d'une zone de disponibilité (AZ). 
+
+Pour cela, nous avons intégré un système de fichiers Amazon EFS (Elastic File System), qui permet de garantir la persistance des données et leur accessibilité depuis différentes AZ.
+
+Les tests réalisés démontrent que l'utilisation d’Amazon EFS permet d'assurer la persistance des données même en cas de panne d'une zone de disponibilité. 
+
+L’automatisation via Terraform et le script user data permet un redéploiement rapide et sans perte de données.
+
+L’infrastructure mise en place répond donc aux exigences du POC en garantissant :
+✅ Haute disponibilité des fichiers stockés sur EFS.
+✅ Sécurité (chiffrement des données et restrictions d'accès).
+✅ Automatisation du montage EFS pour une reprise rapide.
+✅ Optimisation des coûts en limitant l’usage des ressources (une seule NAT Gateway).
+
+Ainsi, ce POC valide la faisabilité de l’utilisation d’EFS pour assurer la résilience de Nextcloud en cas de panne d’AZ.

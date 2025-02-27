@@ -23,7 +23,7 @@ resource "aws_lb_target_group" "nextcloud" {
   vpc_id   = aws_vpc.main.id
 
   health_check {
-    path                = "/status.php"
+    path                = "/"
     interval            = 30
     timeout             = 5
     healthy_threshold   = 3

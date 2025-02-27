@@ -417,6 +417,9 @@ Après reboot, on vois que le fichier est toujours présent
 
 ---
 
+## Schéma 
+![Schéma](img/Schéma.png)
+
 ## Livrables
 - Code **Terraform** incluant la configuration ALB et le déploiement Nextcloud.
 - **Capture d’écran** montrant l’accès réussi à l’application via l’ALB.

@@ -178,6 +178,10 @@ resource "aws_security_group" "nextcloud_db_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = {
+    Name = "${local.name}-nextcloud-db-sg"
+  }
 }
 
 # -----------------------------------------------------------------------------
@@ -186,7 +190,7 @@ resource "aws_security_group" "nextcloud_db_sg" {
 
 # Groupe de sécurité pour l'ALB
 resource "aws_security_group" "alb" {
-  name   = "nextcloud-alb-sg"
+  name   = "${local.name}-nextcloud-alb-sg"
   vpc_id = aws_vpc.main.id
 
   # Autoriser HTTP/HTTPS depuis les IP de l'entreprise
@@ -210,6 +214,10 @@ resource "aws_security_group" "alb" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${local.name}-nextcloud-alb-sg"
   }
 }
 

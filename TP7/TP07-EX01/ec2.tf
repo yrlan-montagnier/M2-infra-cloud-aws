@@ -35,3 +35,11 @@ resource "aws_instance" "nextcloud" {
     Name = "${local.name}-nextcloud"
   }
 }
+
+output "bastion_public_ip" {
+  value = aws_instance.bastion.public_ip
+}
+
+output "nextcloud_private_ip" {
+  value = aws_instance.nextcloud.private_ip
+}

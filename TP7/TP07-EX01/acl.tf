@@ -53,3 +53,13 @@ resource "aws_network_acl_association" "private_acl_assoc" {
   network_acl_id = aws_network_acl.acl.id
   subnet_id      = each.value.id
 }
+
+# Sortie: Règles de filtrage en sortie de la liste de contrôle d'accès
+output "acl_egress_rules" {
+  value = aws_network_acl.acl.egress
+}
+
+# Sortie: Règles de filtrage en entrée de la liste de contrôle d'accès
+output "acl_ingress_rules" {
+  value = aws_network_acl.acl.ingress
+}

@@ -194,7 +194,7 @@ resource "aws_security_group" "alb" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # Remplace par l'IP de ton entreprise
+    cidr_blocks = ["176.138.11.81/32"] # Remplace par l'IP de ton entreprise
   }
 
   ingress {

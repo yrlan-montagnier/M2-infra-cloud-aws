@@ -14,3 +14,7 @@ resource "aws_route53_record" "nextcloud" {
     evaluate_target_health = true
   }
 }
+
+output "nextcloud_fqdn" {
+  value = aws_route53_record.nextcloud.fqdn
+}

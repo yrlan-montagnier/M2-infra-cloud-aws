@@ -1,4 +1,4 @@
-# Déploiement de l'application Nextcloud
+# TP7-EX01 - Déploiement de l'application Nextcloud
 
 ## Contexte
 L'infrastructure pour héberger le service Nextcloud a été préparée et testée, cependant, l'application n'est pas encore installée sur l'instance EC2.
@@ -171,6 +171,7 @@ sudo systemctl restart apache2
 
 
 #### Génération des valeurs `user_data` pour l'instance NextCloud
+* `fqdn`    = `aws_route53_record.nextcloud.fqdn`
 
 :file_folder: `locals.tf`
 ```bash
@@ -191,64 +192,93 @@ locals {
 ### Adaptation de la valeur `user_data` pour l'instance NextCloud
 :file_folder: `ec2.tf`
 ```bash
-# Create a Nextcloud instance
+# Définition de la ressource aws_instance nextcloud
 resource "aws_instance" "nextcloud" {
-  ami                    = data.aws_ami.ubuntu.id
+  ami                    = "ami-09a9858973b288bdd"
   instance_type          = "t3.micro"
-  subnet_id              = aws_subnet.private[local.azs[0]].id
-  key_name               = aws_key_pair.ec2["nextcloud"].key_name
-  vpc_security_group_ids = [aws_security_group.nextcloud.id]
-  user_data              = local.nextcloud_userdata # <-- Changer cette ligne
-  tags                   = { Name = "${local.name}-nextcloud" }
-  depends_on             = [aws_route_table_association.private]
+  subnet_id              = aws_subnet.private["a"].id           # Changer cette ligne pour changer l'AZ
+  key_name               = aws_key_pair.nextcloud.key_name      # Utiliser la paire de clés nextcloud
+  vpc_security_group_ids = [aws_security_group.nextcloud_sg.id] # Utiliser le groupe de sécurité nextcloud_sg
+  user_data              = local.nextcloud_userdata             # Utiliser le script de démarrage généré dans locals.tf
+
+  # user_data = templatefile("setup_efs.sh", {             # Utiliser un script de démarrage pour monter le système de fichiers EFS
+  #   efs_dns = aws_efs_file_system.nextcloud_efs.dns_name # Passer le nom DNS du système de fichiers EFS au script de démarrage
+  # })
+
+  depends_on = [aws_nat_gateway.public_nat, aws_route_table_association.private] # Attendre que la gateway NAT et la route vers internet soient créées
+
+  tags = {
+    Name = "${local.name}-nextcloud"
+  }
 }
 ```
 
 ### 2. Mise en place d’un Application Load Balancer (ALB)
-- Création de l’**ALB** dans les sous-réseaux publics.
-- Définition d’un **groupe cible (Target Group)**.
-- Mise en place des **health checks** pour garantir la disponibilité.
+* Définir les ressources Terraform nécessaires pour déployer un Application Load Balancer.
+* Création de l’**ALB** dans les sous-réseaux publics.
 
 :file_folder: `alb.tf`
 ```bash
 # Création de l'ALB
 resource "aws_lb" "nextcloud" {
-  name               = "nextcloud-alb"
+  name               = "ymontagnier-nextcloud-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
-  subnets            = aws_subnet.public[*].id
+  subnets            = [for s in aws_subnet.public : s.id] # Liste des sous-réseaux publics
+
+  tags = {
+    Name = "${local.name}-nextcloud-alb"
+  }
 }
 
+output "alb_dns_name" {
+  value = aws_lb.nextcloud.dns_name
+}
+```
+
+### 3. Configuration du groupe cible (target group)
+- Définition d’un **groupe cible (Target Group)** pour l'instance Nextcloud existante.
+- Mise en place des **health checks** pour garantir la disponibilité.
+
+:file_folder: `alb.tf`
+
+```bash
 # Création du groupe cible pour Nextcloud
 resource "aws_lb_target_group" "nextcloud" {
-  name     = "nextcloud-tg"
+  name     = "ymontagnier-nextcloud-alb-tg"
   port     = 80
   protocol = "HTTP"
   vpc_id   = aws_vpc.main.id
 
   health_check {
-    path                = "/"
+    path                = "/status.php"
     interval            = 30
     timeout             = 5
     healthy_threshold   = 3
     unhealthy_threshold = 3
   }
-}
 
+    tags = {
+    Name = "${local.name}-nextcloud-alb-tg"
+  }
+}
+```
+
+- Rattacher l'instance EC2 à ce target group
+```bash
 # Attachement de l'instance EC2 au groupe cible
 resource "aws_lb_target_group_attachment" "nextcloud" {
   target_group_arn = aws_lb_target_group.nextcloud.arn
   target_id        = aws_instance.nextcloud.id
   port             = 80
 }
-
 ```
 
-### 3. Configuration des listeners et du routage
+
+### 4. Configuration des listeners et du routage
 - Ajout d’un **listener HTTP** sur l’ALB.
-- Redirection du trafic vers le **groupe cible contenant Nextcloud**.
-- Mise à jour des **groupes de sécurité** pour restreindre l’accès aux **IP de l’entreprise**.
+- Redirection du trafic vers le **groupe cible (target group) contenant Nextcloud**.
 
 :file_folder: `alb.tf`
 ```bash
@@ -258,24 +288,56 @@ resource "aws_lb_listener" "http" {
   port              = 80
   protocol          = "HTTP"
 
+  # Redirection vers HTTP
   default_action {
-    type = "redirect"
-    redirect {
-      port        = "443"
-      protocol    = "HTTPS"
-      status_code = "HTTP_301"
-    }
+    type = "forward"
+    target_group_arn = aws_lb_target_group.nextcloud.arn
+  }
+
+  # Tags
+  tags = {
+    Name = "${local.name}-nextcloud-alb-http-listener"
   }
 }
 ```
 
-### 4. Ajout de l’enregistrement DNS
+- Mise à jour des **groupes de sécurité** pour restreindre l’accès aux **IP de l’entreprise**.
+:file_folder: `security-groups.tf`
+```bash
+# Groupe de sécurité pour l'ALB
+resource "aws_security_group" "alb" {
+  name   = "nextcloud-alb-sg"
+  vpc_id = aws_vpc.main.id
+
+  # Autoriser HTTP/HTTPS depuis les IP de l'entreprise
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] # Remplace par l'IP de ton entreprise
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Autoriser tout le trafic sortant
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+```
+
+### 5. Ajout de l’enregistrement DNS
 - Création d’un **enregistrement Route 53** sous `training.akiros.it` pointant vers l’ALB.
 - Vérification de la **résolution DNS** et de l’accessibilité via un navigateur.
-
-#### Fourni
-
-L'équipe DevOps vous a également fourni une configuration Terraform d'exemple pour déployer l'instance EC2 avec ce userdata particulier pour que vous puissiez vous en inspirer :
+- `fqdn`    = `aws_route53_record.nextcloud.fqdn`
 
 :file_folder: `route53.tf`
 ```bash
@@ -297,10 +359,37 @@ resource "aws_route53_record" "nextcloud" {
 }
 ```
 
-### 5. Test de bascule entre AZ (haute disponibilité)
-- Création d’un **fichier de test** sur Nextcloud.
-- Simulation d’une **panne d’AZ** en redéployant une instance dans une autre zone.
-- Vérification de la **persistance des fichiers** et du maintien du service.
+### 6. Test de l'accès à l'application
+* Récupérer le FQDN précédemment créé dans le sous domaine training.akiros.it.
+```
+output "alb_dns_name" {
+  value = aws_lb.nextcloud.dns_name
+}
+```
+Directement depuis la VM NextCloud :
+```
+ubuntu@ip-10-0-4-235:~$ cat /etc/apache2/sites-available/nextcloud.conf | grep -i Servername
+    ServerName nextcloud-ymontagnier.training.akiros.it
+    ServerName nextcloud-ymontagnier.training.akiros.it
+```
+
+* Tester l'accès à l'application depuis un navigateur web.
+[Nextcloud](img/nextcloud.png)
+
+### 7. Test de la persistance des données
+* S'Authentifier sur l'application Nextcloud
+* Créer un fichier sur l'application
+[Nextcloud](img/nextcloud2.png)
+
+* Simuler une panne d'AZ (redéployer l'instance EC2 dans une autre AZ)
+```
+PS C:\Users\yrlan\OneDrive - Ynov\01-Cours\Infra & SI\M2 - Infrastructure CLOUD AWS\M5-infra-cloud-aws\TP7\TP07-EX01> terraform apply -replace aws_instance.nextcloud
+```
+
+* Vérifier que le fichier créé est toujours présent
+
+Après reboot, on vois que le fichier est toujours présent
+[Nextcloud](img/nextcloud3.png)
 
 ---
 

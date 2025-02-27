@@ -11,6 +11,10 @@ resource "aws_lb" "nextcloud" {
   }
 }
 
+output "alb_dns_name" {
+  value = aws_lb.nextcloud.dns_name
+}
+
 # Création du groupe cible pour Nextcloud
 resource "aws_lb_target_group" "nextcloud" {
   name     = "ymontagnier-nextcloud-alb-tg"
@@ -19,7 +23,7 @@ resource "aws_lb_target_group" "nextcloud" {
   vpc_id   = aws_vpc.main.id
 
   health_check {
-    path                = "/"
+    path                = "/status.php"
     interval            = 30
     timeout             = 5
     healthy_threshold   = 3
@@ -44,14 +48,10 @@ resource "aws_lb_listener" "http" {
   port              = 80
   protocol          = "HTTP"
 
-  # Redirection vers HTTPS
+  # Redirection vers HTTP
   default_action {
-    type = "redirect"
-    redirect {
-      port        = "443"
-      protocol    = "HTTPS"
-      status_code = "HTTP_301"
-    }
+    type = "forward"
+    target_group_arn = aws_lb_target_group.nextcloud.arn
   }
 
   # Tags
@@ -59,3 +59,4 @@ resource "aws_lb_listener" "http" {
     Name = "${local.name}-nextcloud-alb-http-listener"
   }
 }
+

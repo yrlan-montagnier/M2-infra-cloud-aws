@@ -386,6 +386,30 @@ ubuntu@ip-10-0-4-235:~$ cat /etc/apache2/sites-available/nextcloud.conf | grep -
 PS C:\Users\yrlan\OneDrive - Ynov\01-Cours\Infra & SI\M2 - Infrastructure CLOUD AWS\M5-infra-cloud-aws\TP7\TP07-EX01> terraform apply -replace aws_instance.nextcloud
 ```
 
+Dans le fichier d'instance EC2, je change la zone de dispo de l'instance avec : 
+-  `subnet_id`           = `aws_subnet.private["b"].id`         (Changer cette ligne pour changer l'AZ)
+```
+# Définition de la ressource aws_instance nextcloud
+resource "aws_instance" "nextcloud" {
+  ami                    = "ami-09a9858973b288bdd"
+  instance_type          = "t3.micro"
+  subnet_id              = aws_subnet.private["b"].id           # Changer cette ligne pour changer l'AZ
+  key_name               = aws_key_pair.nextcloud.key_name      # Utiliser la paire de clés nextcloud
+  vpc_security_group_ids = [aws_security_group.nextcloud_sg.id] # Utiliser le groupe de sécurité nextcloud_sg
+  user_data              = local.nextcloud_userdata             # Utiliser le script de démarrage généré dans locals.tf
+
+  # user_data = templatefile("setup_efs.sh", {             # Utiliser un script de démarrage pour monter le système de fichiers EFS
+  #   efs_dns = aws_efs_file_system.nextcloud_efs.dns_name # Passer le nom DNS du système de fichiers EFS au script de démarrage
+  # })
+
+  depends_on = [aws_nat_gateway.public_nat, aws_route_table_association.private] # Attendre que la gateway NAT et la route vers internet soient créées
+
+  tags = {
+    Name = "${local.name}-nextcloud"
+  }
+}
+```
+
 * Vérifier que le fichier créé est toujours présent
 
 Après reboot, on vois que le fichier est toujours présent

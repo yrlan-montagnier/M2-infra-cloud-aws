@@ -374,12 +374,12 @@ ubuntu@ip-10-0-4-235:~$ cat /etc/apache2/sites-available/nextcloud.conf | grep -
 ```
 
 * Tester l'accès à l'application depuis un navigateur web.
-[Nextcloud](img/nextcloud.png)
+![Nextcloud](img/nextcloud.png)
 
 ### 7. Test de la persistance des données
 * S'Authentifier sur l'application Nextcloud
 * Créer un fichier sur l'application
-[Nextcloud](img/nextcloud2.png)
+![Nextcloud](img/nextcloud2.png)
 
 * Simuler une panne d'AZ (redéployer l'instance EC2 dans une autre AZ)
 ```
@@ -389,7 +389,7 @@ PS C:\Users\yrlan\OneDrive - Ynov\01-Cours\Infra & SI\M2 - Infrastructure CLOUD 
 * Vérifier que le fichier créé est toujours présent
 
 Après reboot, on vois que le fichier est toujours présent
-[Nextcloud](img/nextcloud3.png)
+![Nextcloud](img/nextcloud3.png)
 
 ---
 

@@ -62,6 +62,10 @@ resource "aws_vpc_security_group_egress_rule" "allow_all_from_bastion" {
   security_group_id = aws_security_group.bastion_sg.id
   cidr_ipv4         = "0.0.0.0/0"
   ip_protocol       = "-1" # semantically equivalent to all ports
+
+  tags = {
+    Name = "Allow all outbound traffic"
+  }
 }
 
 # -----------------------------------------------------------------------------
@@ -99,21 +103,14 @@ resource "aws_vpc_security_group_ingress_rule" "allow_http_from_alb_to_nextcloud
   security_group_id = aws_security_group.nextcloud_sg.id
 
   # Autoriser le trafic HTTP depuis le security group de l'ALB
-  referenced_security_group_id = aws_security_group.alb.id
+  referenced_security_group_id = aws_security_group.nextcloud-alb-sg.id
   from_port                    = 80
   ip_protocol                  = "tcp"
   to_port                      = 80
-}
 
-# Autoriser le trafic HTTPS depuis l'ALB
-resource "aws_vpc_security_group_ingress_rule" "allow_https_from_alb_to_nextcloud" {
-  security_group_id = aws_security_group.nextcloud_sg.id
-
-  # Autoriser le trafic HTTPS depuis le security group de l'ALB
-  referenced_security_group_id = aws_security_group.alb.id
-  from_port                    = 443
-  ip_protocol                  = "tcp"
-  to_port                      = 443
+  tags = {
+    Name = "Allow HTTP from ALB"
+  }
 }
 
 # Autoriser tout le trafic sortant
@@ -121,6 +118,10 @@ resource "aws_vpc_security_group_egress_rule" "allow_all_from_nextcloud" {
   security_group_id = aws_security_group.nextcloud_sg.id
   cidr_ipv4         = "0.0.0.0/0"
   ip_protocol       = "-1" # semantically equivalent to all ports
+
+  tags = {
+    Name = "Allow all outbound traffic"
+  }
 }
 
 # -----------------------------------------------------------------------------
@@ -129,7 +130,7 @@ resource "aws_vpc_security_group_egress_rule" "allow_all_from_nextcloud" {
 
 # Créer un security group pour l'EFS
 resource "aws_security_group" "efs_sg" {
-  name        = "${local.name}-efs-sg"
+  name        = "${local.name}-nextcloud-efs-sg"
   description = "Security group for Nextcloud EFS"
   vpc_id      = aws_vpc.main.id
 
@@ -160,27 +161,26 @@ resource "aws_vpc_security_group_ingress_rule" "allow_nfs_from_nextcloud" {
 # Créer un security group pour la base de données RDS
 resource "aws_security_group" "nextcloud_db_sg" {
   name        = "${local.name}-nextcloud-db-sg"
-  description = "RDS Nextcloud"
+  description = "Security group for Nextcloud RDS"
   vpc_id      = aws_vpc.main.id
-
-  # Autoriser le trafic MySQL depuis le security group de Nextcloud
-  ingress {
-    from_port       = 3306
-    to_port         = 3306
-    protocol        = "tcp"
-    security_groups = [aws_security_group.nextcloud_sg.id]
-  }
-
-  # Autoriser tout le trafic sortant
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 
   tags = {
     Name = "${local.name}-nextcloud-db-sg"
+  }
+}
+
+# Autoriser uniquement Nextcloud à accéder à MySQL sur le port 3306
+resource "aws_vpc_security_group_ingress_rule" "allow_mysql_from_nextcloud" {
+  security_group_id = aws_security_group.nextcloud_db_sg.id
+
+  # Autoriser le trafic MySQL depuis le security group de Nextcloud
+  referenced_security_group_id = aws_security_group.nextcloud_sg.id
+  from_port                    = 3306
+  ip_protocol                  = "tcp"
+  to_port                      = 3306
+
+  tags = {
+    Name = "Allow MySQL access from Nextcloud SG"
   }
 }
 
@@ -188,36 +188,42 @@ resource "aws_security_group" "nextcloud_db_sg" {
 # ALB - Amazon Load Balancer
 # -----------------------------------------------------------------------------
 
-# Groupe de sécurité pour l'ALB
-resource "aws_security_group" "alb" {
-  name   = "${local.name}-nextcloud-alb-sg"
-  vpc_id = aws_vpc.main.id
-
-  # Autoriser HTTP/HTTPS depuis les IP de l'entreprise
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["176.138.11.81/32"] # Remplace par l'IP de ton entreprise
-  }
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # Remplace par l'IP de ton entreprise
-  }
-
-  # Autoriser tout le trafic sortant
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+# Créer un security group pour le load balancer ALB 
+resource "aws_security_group" "nextcloud-alb-sg" {
+  name        = "${local.name}-nextcloud-alb-sg"
+  description = "Security group for Nextcloud ALB"
+  vpc_id      = aws_vpc.main.id
 
   tags = {
     Name = "${local.name}-nextcloud-alb-sg"
   }
 }
 
+# Autoriser le trafic HTTP depuis l'IP de l'entreprise/maison
+resource "aws_vpc_security_group_ingress_rule" "allow_http_from_maison_to_alb" {
+  security_group_id = aws_security_group.nextcloud-alb-sg.id
+
+  cidr_ipv4   = "195.7.117.146/32"
+  from_port   = 80
+  ip_protocol = "tcp"
+  to_port     = 80
+
+  tags = {
+    Name = "Autoriser l'accès à NextCloud depuis ma maison"
+  }
+}
+
+# Autoriser le trafic HTTP depuis le security group de Nextcloud
+resource "aws_vpc_security_group_ingress_rule" "allow_http_from_nextcloud_to_alb" {
+  security_group_id = aws_security_group.nextcloud-alb-sg.id
+
+  # Autoriser le trafic HTTP depuis le security group de Nextcloud
+  referenced_security_group_id = aws_security_group.nextcloud_sg.id
+  from_port                    = 80
+  ip_protocol                  = "tcp"
+  to_port                      = 80
+
+  tags = {
+    Name = "Allow HTTP access from Nextcloud SG"
+  }
+}

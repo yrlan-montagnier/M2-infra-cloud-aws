@@ -1,7 +1,7 @@
 # Créer un EFS pour Nextcloud
 resource "aws_efs_file_system" "nextcloud_efs" {
   creation_token   = "nextcloud-efs-token"
-  encrypted        = false
+  encrypted        = true
   performance_mode = "generalPurpose"
   tags = {
     Name = "${local.name}-nextcloud-efs"

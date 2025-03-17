@@ -1,9 +1,9 @@
 # Création de l'ALB
 resource "aws_lb" "nextcloud" {
-  name               = "ymontagnier-nextcloud-alb"
+  name               = "${local.user}-nextcloud-alb"
   internal           = false
   load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb.id]
+  security_groups    = [aws_security_group.nextcloud-alb-sg.id]
   subnets            = [for s in aws_subnet.public : s.id] # Liste des sous-réseaux publics
 
   tags = {
@@ -17,7 +17,7 @@ output "alb_dns_name" {
 
 # Création du groupe cible pour Nextcloud
 resource "aws_lb_target_group" "nextcloud" {
-  name     = "ymontagnier-nextcloud-alb-tg"
+  name     = "${local.user}-nextcloud-alb-tg"
   port     = 80
   protocol = "HTTP"
   vpc_id   = aws_vpc.main.id
@@ -30,7 +30,7 @@ resource "aws_lb_target_group" "nextcloud" {
     unhealthy_threshold = 3
   }
 
-    tags = {
+  tags = {
     Name = "${local.name}-nextcloud-alb-tg"
   }
 }

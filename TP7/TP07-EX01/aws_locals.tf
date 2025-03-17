@@ -7,6 +7,7 @@ locals {
   user = "ymontagnier"                # Change this to your own username
   tp   = basename(abspath(path.root)) # Get the name of the current directory
   name = "${local.user}-${local.tp}"  # Concatenate the username and the directory name
+  
   tags = {                            # Define a map of tags to apply to all resources
     Name  = local.name
     Owner = local.user
@@ -45,7 +46,7 @@ locals {
   }
 
   # Generate the user data for the Nextcloud instance
-  nextcloud_userdata = templatefile("${path.module}/userdata/nextcloud.sh.tftpl",
+  nextcloud_userdata = base64encode(templatefile("${path.module}/userdata/nextcloud.sh.tftpl",
     {
       efs_dns = aws_efs_file_system.nextcloud_efs.dns_name,
       db_name = aws_db_instance.nextcloud_db.db_name,
@@ -53,14 +54,9 @@ locals {
       db_user = aws_db_instance.nextcloud_db.username,
       db_pass = random_password.rds_nextcloud.result,
       fqdn    = aws_route53_record.nextcloud.fqdn,
-  })
+  }))
 
-  # Syntaxe d'origine
-  # public_subnets_cidrs  = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"] # Définition des CIDRs des subnets publics
-  # private_subnets_cidrs = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"] # Définition des CIDRs des subnets privés
-  # azs                   = ["eu-north-1a", "eu-north-1b", "eu-north-1c"] # Définition des AZs
-
-  # Syntaxe clé / Valeur
+  # Syntaxe clé / Valeur (limité à 2 propriétés)
   # public_subnet = {
   #   "eu-north-1a" = "10.0.1.0/24"
   #   "eu-north-1b" = "10.0.2.0/24"
@@ -77,4 +73,9 @@ locals {
 resource "random_password" "rds_nextcloud" {
   length  = 16
   special = false
+}
+
+output random_password {
+  value = random_password.rds_nextcloud.result
+  sensitive = true
 }

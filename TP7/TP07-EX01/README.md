@@ -304,32 +304,47 @@ resource "aws_lb_listener" "http" {
 - Mise à jour des **groupes de sécurité** pour restreindre l’accès aux **IP de l’entreprise**.
 :file_folder: `security-groups.tf`
 ```bash
-# Groupe de sécurité pour l'ALB
-resource "aws_security_group" "alb" {
-  name   = "nextcloud-alb-sg"
-  vpc_id = aws_vpc.main.id
+# -----------------------------------------------------------------------------
+# ALB - Amazon Load Balancer
+# -----------------------------------------------------------------------------
 
-  # Autoriser HTTP/HTTPS depuis les IP de l'entreprise
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # Remplace par l'IP de ton entreprise
+# Créer un security group pour le load balancer ALB 
+resource "aws_security_group" "nextcloud-alb-sg" {
+  name        = "${local.name}-nextcloud-alb-sg"
+  description = "Security group for Nextcloud ALB"
+  vpc_id      = aws_vpc.main.id
+
+  tags = {
+    Name = "${local.name}-nextcloud-alb-sg"
   }
+}
 
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+# Autoriser le trafic HTTP depuis l'IP de l'entreprise/maison
+resource "aws_vpc_security_group_ingress_rule" "allow_http_from_maison_to_alb" {
+  security_group_id = aws_security_group.nextcloud-alb-sg.id
+
+  cidr_ipv4   = "195.7.117.146/32"
+  from_port   = 80
+  ip_protocol = "tcp"
+  to_port     = 80
+
+  tags = {
+    Name = "Autoriser l'accès à NextCloud depuis ma maison"
   }
+}
 
-  # Autoriser tout le trafic sortant
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+# Autoriser le trafic HTTP depuis le security group de Nextcloud
+resource "aws_vpc_security_group_ingress_rule" "allow_http_from_nextcloud_to_alb" {
+  security_group_id = aws_security_group.nextcloud-alb-sg.id
+
+  # Autoriser le trafic HTTP depuis le security group de Nextcloud
+  referenced_security_group_id = aws_security_group.nextcloud_sg.id
+  from_port                    = 80
+  ip_protocol                  = "tcp"
+  to_port                      = 80
+
+  tags = {
+    Name = "Allow HTTP access from Nextcloud SG"
   }
 }
 ```

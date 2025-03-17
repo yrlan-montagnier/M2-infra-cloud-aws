@@ -55,11 +55,11 @@ resource "aws_network_acl_association" "private_acl_assoc" {
 }
 
 # Sortie: Règles de filtrage en sortie de la liste de contrôle d'accès
-output "acl_egress_rules" {
-  value = aws_network_acl.acl.egress
-}
+# output "acl_egress_rules" {
+#   value = aws_network_acl.acl.egress
+# }
 
 # Sortie: Règles de filtrage en entrée de la liste de contrôle d'accès
-output "acl_ingress_rules" {
-  value = aws_network_acl.acl.ingress
-}
+# output "acl_ingress_rules" {
+#   value = aws_network_acl.acl.ingress
+# }

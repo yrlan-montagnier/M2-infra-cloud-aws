@@ -18,7 +18,7 @@ resource "aws_vpc_security_group_ingress_rule" "allow_ssh_from_ynov_to_bastion" 
   security_group_id = aws_security_group.bastion_sg.id
 
   # YNOV IP
-  cidr_ipv4   = "13.38.15.170/32"
+  cidr_ipv4   = "195.7.117.146/32"
   from_port   = 22
   ip_protocol = "tcp"
   to_port     = 22
@@ -225,5 +225,17 @@ resource "aws_vpc_security_group_ingress_rule" "allow_http_from_nextcloud_to_alb
 
   tags = {
     Name = "Allow HTTP access from Nextcloud SG"
+  }
+}
+
+# Autoriser le trafic HTTP sortant depuis le security group de l'ALB
+resource "aws_vpc_security_group_egress_rule" "allow_all_from_alb_to_all" {
+  security_group_id = aws_security_group.nextcloud-alb-sg.id
+
+  cidr_ipv4   = "0.0.0.0/0"
+  ip_protocol = "-1" # semantically equivalent to all ports
+
+  tags = {
+    Name = "Allow all outbound traffic"
   }
 }

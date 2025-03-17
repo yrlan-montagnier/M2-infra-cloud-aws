@@ -7,7 +7,7 @@ data "aws_ami" "nextcloud" {
   # Filtre pour récupérer l'AMI la plus récente correspondant au pattern "ymontagnier-*-nextcloud-*"
   filter {
     name   = "name"
-    values = ["${local.user}-*-nextcloud-*"]
+    values = ["${local.user}-ami-nextcloud*"]
   }
 
   # Filtre pour récupérer une AMI disponible

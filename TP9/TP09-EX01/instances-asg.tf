@@ -13,6 +13,15 @@ resource "aws_launch_template" "nextcloud" {
     name = aws_iam_instance_profile.nextcloud_instance_profile.name
   }
 
+  # Définition des tags pour les interfaces réseau
+  tag_specifications {
+    resource_type = "network-interface"
+    tags = {
+      Name  = "${local.name}-nextcloud-nic"
+      Owner = local.user
+    }
+  }
+
   # Définition des tags pour les instances créés à partir de ce Launch Template
   tag_specifications {
     resource_type = "instance"

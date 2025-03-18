@@ -8,6 +8,15 @@ resource "aws_launch_template" "nextcloud" {
   vpc_security_group_ids = [aws_security_group.nextcloud_sg.id] # Utiliser le groupe de sécurité nextcloud_sg
   user_data              = local.nextcloud_userdata
 
+  # Définition des tags pour les interfaces réseau
+  tag_specifications {
+    resource_type = "network-interface"
+    tags = {
+      Name  = "${local.name}-nextcloud-nic"
+      Owner = local.user
+    }
+  }
+  
   # Définition des tags pour les instances créés à partir de ce Launch Template
   tag_specifications {
     resource_type = "instance"

@@ -1,237 +1,258 @@
-# TP7 - Exercice 2
+# TP8 - Exercice 1
+
 ## Contexte
-Maintenant que l'application Nextcloud est déployée et accessible via l'ALB, l'équipe de direction souhaite améliorer la résilience de l'infrastructure. 
 
-L'objectif est de pouvoir gérer la reprise d'activité en cas de panne d'une AZ ou d'une instance EC2 et également de préparer le terrain pour une gestion automatique de la capacité en fonction de la charge.
+Maintenant que l'Auto Scaling Group est en place, l'équipe de direction souhaite qu'il soit amélioré en mettant en place une scaling policy pour gérer automatiquement la capacité en fonction de la charge.
 
-On vous demande de travailler conjointement avec l'équipe DevOps afin de mettre en place un Auto Scaling Group (ASG) pour gérer dynamiquement les instances Nextcloud. Cette solution devra permettre de relancer automatiquement une instance EC2 dans une autre AZ en cas de panne.
+L'équipe d'infrastructure a réalisé un test de montée en charge minimaliste consistant à envoyer des requêtes HTTP sur la page d'authentification de Nextcloud.
 
+Ce test a mis en lumière que l'application pouvait répondre à une volumétrie d'environ 1500 requêtes cumulées sur 1 minute; au delà, le serveur web est saturé et n'est plus en mesure de répondre correctement.
 
 ## Objectifs
-* Suivre les instructions de l'équipe DevOps pour mettre en place un Auto Scaling Group pour les instances Nextcloud.
-* Tester le déploiement initial de l'Auto Scaling Group sans scaling policy.
-* Simuler une panne d'AZ et vérifier que l'application est automatiquement redéployée dans une autre AZ sans perte de données.
 
-## Etapes de réalisation
-### 📌 1. Création d’une AMI de l’instance Nextcloud existante
+Votre objectif est de mettre en place une scaling policy pour l'Auto Scaling Group afin de gérer automatiquement la capacité en fonction de la charge du serveur web en vous basant sur les résultats du test de montée en charge.
 
-#### Consignes
-* Créer une AMI à partir de l'instance Nextcloud existante une fois que l'application est configurée et fonctionnelle.
-* Le processus de création automatique de l'AMI sera réalisé par l'équipe DevOPS dans un second temps.
-* Pour cette étape, vous pouvez créer l'AMI manuellement dans la console AWS.
-* Assurez-vous que l'AMI soit nommée de manière explicite pour faciliter son identification `<username>-<tp_directory>-nextcloud-<date>`.
-* Assurez-vous que l'AMI soit correctement taggée (tags `Name` et `Owner`).
+Vous devez mettre en place une scaling policy qui permettra :
 
----
+* d'ajouter des instances si la charge dépasse 70% de la capacité du serveur web (1000 requêtes sur 1 minute)
+* de supprimer des instances si la charge est inférieure à 30% de la capacité du serveur web (400 requêtes sur 1 minute)
 
-#### Mise en place
-1. Accéder à la **console AWS** → **EC2** → **Instances**.
-2. Sélectionner l'instance Nextcloud et cliquer sur **"Créer une image"**.
-3. Donner un nom explicite, par ex. :  
-   **`ymontagnier-ami-nextcloud`**
-4. Vérifier que l’AMI est bien créée dans **Images > AMI**
-5. Ajouter les tags :
-   - `Name = ymontagnier-ami-nextcloud`
-   - `Owner = ymontagnier`
+## Étapes de réalisation
 
-### 📌 2. Récupération de l’ID de l’AMI en Terraform
-#### Consignes
-* Créer la configuration Terraform pour récupérer dynamiquement l'ID de l'AMI créée précédemment.
-* Cette configuration devra récupérer l'ID de l'AMI la plus récente qui correspond aux critères de rechercher suivants :
-* Le nom de l'AMI doit commencer par `<username>-ami-nextcloud`.
-* L'AMI doit être dans un état disponible (available).
-* L'AMI doit avoir comme propriétaire le compte AWS actuel (self).
+### 1. Création de la scaling policy
 
-#### Mise en place
-Ajout du bloc Terraform pour récupérer dynamiquement l’AMI la plus récente :
-:file_folder: `instances-ami.tf`
-```hcl
-# Ce fichier contient la définition de la ressource aws_ami qui permet de récupérer l'AMI la plus récente correspondant à un pattern donné
-# Cette ressource est définie dans un bloc data
-data "aws_ami" "nextcloud" {
-  most_recent = true
-  owners      = ["self"]
+Créez deux auto scaling policies pour l'Auto Scaling Group :
 
-  # Filtre pour récupérer l'AMI la plus récente correspondant au pattern "ymontagnier-*-nextcloud-*"
-  filter {
-    name   = "name"
-    values = ["${local.user}-ami-nextcloud*"]
-  }
+* La première doit servir à ajouter une instance au groupe d'auto scaling et se nommer `<user>-<tpdir>-nextcloud-scaleout`.
+* La seconde doit servir à supprimer une instance du groupe d'auto scaling et se nommer `<user>-<tpdir>-nextcloud-scalein`.
+* Les deux policies doivent être :
+  * De type "SimpleScaling"
+  * Avoir un type d'ajustement "ChangeInCapacity" qui ajoute ou supprime une instance à la fois.
 
-  # Filtre pour récupérer une AMI disponible
-  filter {
-    name   = "state"
-    values = ["available"]
-  }
+Exemple de configuration Terraform pour les policies :
+
+```terraform
+resource "aws_autoscaling_policy" "scale_out" {
+  name                   = "${local.name}-nextcloud-scaleout"
+  scaling_adjustment     = 1
+  adjustment_type        = "ChangeInCapacity"
+  policy_type            = "SimpleScaling"
+  cooldown               = 300
+  autoscaling_group_name = aws_autoscaling_group.nextcloud.name
 }
 
-output "ami_id" {
-  value = data.aws_ami.nextcloud.id
-}
-
-output "ami_name" {
-  value = data.aws_ami.nextcloud.name
+resource "aws_autoscaling_policy" "scale_in" {
+  name                   = "${local.name}-nextcloud-scalein"
+  scaling_adjustment     = -1
+  adjustment_type        = "ChangeInCapacity"
+  policy_type            = "SimpleScaling"
+  cooldown               = 300
+  autoscaling_group_name = aws_autoscaling_group.nextcloud.name
 }
 ```
-### 📌 3. Création du Launch Template
-#### Consigne
-* Créer la configuration Terraform qui déploie un Launch Template.
-    * Utiliser l'AMI créée précédemment.
-    * Configurer les paramètres des instances de manière identique à ce qui avait été fait pour l'instance EC2 nextcloud (type, key, security group) à l'exception du userdata qui ne servira plus.
-    * Ne pas oublier de configurer les tags pour :
-        * le launch Template
-        * les instances
-        * les volumes
-        * les interfaces réseau
 
-#### Mise en place
-Un Launch Template définit comment les instances seront créées dans l’ASG.
-:file_folder: `instances-asg.tf`
+### 2. Création des alarmes CloudWatch
 
-```hcl
-# Template pour la création d'un Auto Scaling Group (ASG) avec Terraform
-# Cette ressource définit une ressource aws_launch_template, ce qui permet de créer un Launch Template
-resource "aws_launch_template" "nextcloud" {
-  name_prefix            = "${local.name}-nextcloud-lt"
-  image_id               = data.aws_ami.nextcloud.id
-  instance_type          = "t3.micro"
-  key_name               = aws_key_pair.nextcloud.key_name
-  vpc_security_group_ids = [aws_security_group.nextcloud_sg.id]
+Créez deux alarmes CloudWatch qui surveilleront le nombre de requêtes par serveur sur 1 minute.
 
-  tag_specifications {
-    resource_type = "instance"
-    tags = {
-      Name  = "${local.name}-nextcloud-instance"
-      Owner = local.user
-    }
+* La première alarme doit se déclencher si le nombre de requêtes par serveur sur 1 minute est supérieur à 1000 et doit être nommée `<user>-<tpdir>-nextcloud-asg-scaleout`.
+* La seconde alarme doit se déclencher si le nombre de requêtes par serveur sur 1 minute est inférieur à 400 et doit être nommée `<user>-<tpdir>-nextcloud-asg-scalein`.
+
+> Les deux alarmes doivent être configurées pour déclencher les scaling policies correspondantes.
+
+Exemple de configuration Terraform pour les alarmes :
+
+```terraform
+resource "aws_cloudwatch_metric_alarm" "scale_out" {
+  alarm_name          = "${local.name}-nextcloud-asg-scaleout"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "RequestCountPerTarget"
+  namespace           = "AWS/ApplicationELB"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 1000
+  alarm_actions       = [aws_autoscaling_policy.scale_out.arn]
+
+  dimensions = {
+    TargetGroup = aws_lb_target_group.nextcloud.arn_suffix
   }
+}
 
-  tag_specifications {
-    resource_type = "volume"
-    tags = {
-      Name  = "${local.name}-nextcloud-volume"
-      Owner = local.user
-    }
+resource "aws_cloudwatch_metric_alarm" "scale_in" {
+  alarm_name          = "${local.name}-nextcloud-asg-scalein"
+  comparison_operator = "LessThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "RequestCountPerTarget"
+  namespace           = "AWS/ApplicationELB"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 400
+  alarm_actions       = [aws_autoscaling_policy.scale_in.arn]
+
+  dimensions = {
+    TargetGroup = aws_lb_target_group.nextcloud.arn_suffix
   }
 }
 ```
-### 📌 4. Création de l’Auto Scaling Group
-#### Consigne
-* Créer la configuration Terraform qui déploie un Auto Scaling Group nommé `<username>-<tp_directory>-nextcloud`.
-* Cette première configuration ne gérera pas la capacité automatiquement, elle sera utilisée pour tester le déploiement initial de l'ASG :
-    * Utiliser le Launch Template créé précédemment dans sa version la plus récente.
-    * Configurer le nombre d'instances minimum, désiré et maximum à 1.
-    * Configurer le type de health check sur le Load Balancer.
-    * Configurer les sous-réseaux où les instances EC2 seront déployées de sorte à ce qu'elles soient réparties sur les 3 AZ.
-    * Configurer le rattachement automatique des instances au target group utilisé par l'ALB.
-    * Configurer les tags pour l'ASG comme ceci :-1: 
-    ```
-    tag {
-      key                 = "Owner"
-      value               = local.user
-      propagate_at_launch = false
+
+### 3. Création d'un dashboard CloudWatch
+
+L'équipe DevOPS a déjà créé un dashboard CloudWatch qui affiche les métriques suivantes :
+
+* Le nombre de requêtes par serveur sur 1 minute
+* Le nombre d'instances en cours d'exécution et en cours suppression.
+
+Le code fourni pour le dashboard est correct et n'a pas besoin de modifications.
+
+```
+resource "aws_cloudwatch_dashboard" "nextcloud" {
+  dashboard_name = "${local.name}-nextcloud-asg"
+  dashboard_body = jsonencode(
+    {
+      periodOverride = "inherit"
+      start          = "-PT30M"
+      widgets = [
+        {
+          height = 6
+          properties = {
+            legend = {
+              position = "bottom"
+            }
+            liveData = true
+            metrics = [
+              [
+                "AWS/AutoScaling",
+                "GroupInServiceInstances",
+                "AutoScalingGroupName",
+                aws_autoscaling_group.nextcloud.name,
+                {
+                  color = "#2ca02c"
+                  label = "InServiceInstances"
+                },
+              ],
+              [
+                ".",
+                "GroupTerminatingInstances",
+                ".",
+                ".",
+                {
+                  color = "#d62728"
+                  label = "TerminatingInstances"
+                },
+              ],
+            ]
+            period = 60
+            region = "eu-north-1"
+            stat   = "Average"
+            title  = "ASG - In Service/Terminating Instances"
+          }
+          type  = "metric"
+          width = 24
+          x     = 0
+          y     = 0
+        },
+        {
+          height = 6
+          properties = {
+            annotations = {
+              horizontal = [
+                {
+                  color = "#2ca02c"
+                  label = "Add Instance"
+                  value = 1000
+                },
+                {
+                  color = "#d62728"
+                  label = "Remove Instance"
+                  value = 400
+                },
+              ]
+            }
+            legend = {
+              position = "bottom"
+            }
+            metrics = [
+              [
+                "AWS/ApplicationELB",
+                "RequestCountPerTarget",
+                "TargetGroup",
+                aws_lb_target_group.nextcloud.arn_suffix,
+              ],
+            ]
+            period = 60
+            region = "eu-north-1"
+            stat   = "Sum"
+            title  = "ALB - Request Count Per Target"
+          }
+          type  = "metric"
+          width = 24
+          x     = 0
+          y     = 6
+        },
+      ]
     }
-    ```
+  )
+}
+```
 
-#### Mise en place
-:file_folder: `instances-asg.tf`
-L’ASG déploiera une instance et la relancera en cas de panne.
+### 4. Test de la scaling policy
 
-```hcl
+Une fois que les scaling policies et les alarmes sont en place, effectuez un test de montée en charge pour vérifier que les instances sont bien ajoutées ou supprimées en fonction de la charge.
+
+Utilisez l'outil siege pour effectuer ce test depuis votre instance cloud9 :
+
+#### Installation de siege
+
+```bash
+curl -C - -O https://download.joedog.org/siege/siege-4.1.7.tar.gz && tar -xvzf siege-4.1.7.tar.gz
+pushd siege-4.1.7/
+./configure
+make && sudo make install
+popd
+rm -rf siege-*
+```
+
+#### Utilisation de siege
+
+Lancez la commande :
+
+```bash
+siege -c 5 -t 10M http://nextcloud-ymontagnier.training.akiros.it/index.php/login
+```
+
+Cette commande simule les requêtes de 5 utilisateurs qui consultent notre site en permanence pendant 10 minutes.
+
+Pendant que la commande s'exécute, surveillez le Dashboard Cloudwatch et les alarmes dans la console AWS.
+
+### 5. Analyse des résultats
+
+On modifie l'ASG pour pouvoir monter jusqu'à 5 instances :
+
+```
 # Cette ressource définit un Auto Scaling Group (ASG) qui utilise le Launch Template précédemment créé dans sa version la plus récente
 resource "aws_autoscaling_group" "nextcloud" {
   name                = "${local.name}-nextcloud-asg"
   desired_capacity    = 1                                    # Nombre d'instances souhaité
   min_size            = 1                                    # Nombre minimum d'instances
-  max_size            = 1                                    # Nombre maximum d'instances
-  vpc_zone_identifier = [for s in aws_subnet.private : s.id] # Subnets privés
-
-  # Utiliser le Launch Template pour créer les instances
-  launch_template {
-    id      = aws_launch_template.nextcloud.id
-    version = "$Latest"
-  }
-
-  health_check_type         = "ELB"                               # Utiliser le Load Balancer pour la vérification de l'état de santé des instances
-  health_check_grace_period = 300                                # Délai entre le démarrage de l'instance et le début des vérifications de l'état de santé
-  target_group_arns         = [aws_lb_target_group.nextcloud.arn] # Attacher les instances au Target Group du Load Balancer
-
-  # Définition des tags pour l'Auto Scaling Group
-  tag {
-    key                 = "Owner"
-    value               = local.user
-    propagate_at_launch = false
-  }
-
-  tag {
-    key                 = "Name"
-    value               = "${local.name}-nextcloud-asg"
-    propagate_at_launch = false
-  }
-}
-```
-
-Ajout d'output pour récupérer l'IP privée des instances Nextcloud
-```
-data "aws_instances" "nextcloud_asg" {
-  filter {
-    name   = "tag:aws:autoscaling:groupName"
-    values = [aws_autoscaling_group.nextcloud.name]
-  }
-}
-
-output "asg_instances_nextcloud_private_ips" {
-  value = data.aws_instances.nextcloud_asg.private_ips
-}
-```
-
-### 📌 5. Suppression de l’ancienne instance Nextcloud
-Commenter la ressource Terraform existante dans le fichier ec2.tf :
+  max_size            = 5                                    # Nombre maximum d'instances
 
 ```
-# resource "aws_instance" "nextcloud" {
-#   ami                    = "ami-09a9858973b288bdd"
-#   instance_type          = "t3.micro"
-#   subnet_id              = aws_subnet.private["b"].id           # Changer cette ligne pour changer l'AZ
-#   key_name               = aws_key_pair.nextcloud.key_name      # Utiliser la paire de clés nextcloud
-#   vpc_security_group_ids = [aws_security_group.nextcloud_sg.id] # Utiliser le groupe de sécurité nextcloud_sg
-#   user_data              = local.nextcloud_userdata             # Utiliser le script de démarrage généré dans locals.tf
 
-#   # user_data = templatefile("setup_efs.sh", {             # Utiliser un script de démarrage pour monter le système de fichiers EFS
-#   #   efs_dns = aws_efs_file_system.nextcloud_efs.dns_name # Passer le nom DNS du système de fichiers EFS au script de démarrage
-#   # })
+Après le test de montée en charge, les instances ont bien été ajoutées ou supprimées en fonction de la charge.
 
-#   depends_on = [aws_nat_gateway.public_nat, aws_route_table_association.private] # Attendre que la gateway NAT et la route vers internet soient créées
+![](img/historique_asg.png)
 
-#   tags = {
-#     Name = "${local.name}-nextcloud"
-#   }
-# }
-```
+On voit bien sur le dashboard global la montée en charge et la descente :
 
-### 📌6. Déploiement de l'Auto Scaling Group
+![](img/asg_dashboard.png)
 
-Puis appliquer les changements :
-```
-terraform apply
-```
-> ⚠️ L’ancienne instance sera supprimée, et une nouvelle sera lancée via l’ASG.
+## Livrables attendus
 
-## ✅ Test de la résilience
-1. Connexion à Nextcloud et vérification de l'accès.
-2. Création d’un fichier dans Nextcloud.
-3. Simuler une panne :
-    * AWS Console → EC2 → sélection de l'instance Nextcloud → Actions → Instance State → Terminate.
+- Le code Terraform de l'infrastructure complété avec les configurations des scaling policies et des alarmes CloudWatch.
+- Un rapport d'analyse des résultats du test de montée en charge, avec des captures d'écran du dashboard CloudWatch.
 
-4. Attente quelques minutes, puis vérification :
-* Une nouvelle instance est créée dans une autre AZ ? ✅
-* L'application Nextcloud reste accessible via l’ALB? ✅
-* Le fichier précédemment créé est toujours là (test de persistance des données)? ✅
+## Critères de validation
 
-
-## Conclusion
-
-### ✅ Objectifs atteints
-✔ Auto Scaling Group opérationnel
-✔ Gestion automatique des pannes
-✔ Test de persistance des données réussi
+- Les scaling policies et les alarmes CloudWatch sont correctement configurées (3 points)
+- Le rapport d'analyse des résultats est correct et démontre que les instances sont bien ajoutées ou supprimées en fonction de la charge (2 points)

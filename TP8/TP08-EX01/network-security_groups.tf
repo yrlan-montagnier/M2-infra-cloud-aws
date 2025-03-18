@@ -213,6 +213,20 @@ resource "aws_vpc_security_group_ingress_rule" "allow_http_from_ynov_to_alb" {
   }
 }
 
+# Autoriser le trafic HTTP depuis l'IP de Cloud9 (pour les tests avec siege) vers l'ALB
+resource "aws_vpc_security_group_ingress_rule" "allow_http_from_cloud9_to_alb" {
+  security_group_id = aws_security_group.nextcloud-alb-sg.id
+
+  cidr_ipv4   = "15.237.144.13/32"
+  from_port   = 80
+  ip_protocol = "tcp"
+  to_port     = 80
+
+  tags = {
+    Name = "Autoriser l'accès à NextCloud depuis Ynov"
+  }
+}
+
 # Autoriser le trafic HTTP depuis l'IP de l'entreprise/maison
 resource "aws_vpc_security_group_ingress_rule" "allow_http_from_maison_to_alb" {
   security_group_id = aws_security_group.nextcloud-alb-sg.id

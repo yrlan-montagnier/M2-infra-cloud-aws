@@ -37,7 +37,7 @@ resource "aws_autoscaling_group" "nextcloud" {
   name                = "${local.name}-nextcloud-asg"
   desired_capacity    = 1                                    # Nombre d'instances souhaité
   min_size            = 1                                    # Nombre minimum d'instances
-  max_size            = 1                                    # Nombre maximum d'instances
+  max_size            = 2                                    # Nombre maximum d'instances
   vpc_zone_identifier = [for s in aws_subnet.private : s.id] # Subnets privés
 
   # Utiliser le Launch Template pour créer les instances

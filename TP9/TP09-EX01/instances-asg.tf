@@ -1,7 +1,7 @@
 # Template pour la création d'un Auto Scaling Group (ASG) avec Terraform
 # Cette ressource définit une ressource aws_launch_template, ce qui permet de créer un Launch Template
 resource "aws_launch_template" "nextcloud" {
-  name_prefix = "${local.name}-nextcloud-lt"
+  name_prefix            = "${local.name}-nextcloud-lt"
   image_id               = data.aws_ami.nextcloud.id            # Utiliser l'image la plus récente correspondant au pattern "ymontagnier-*-nextcloud-*"
   instance_type          = "t3.micro"                           # Type d'instance                 
   key_name               = aws_key_pair.nextcloud.key_name      # Utiliser la paire de clés nextcloud
@@ -61,7 +61,7 @@ resource "aws_autoscaling_group" "nextcloud" {
   }
 
   health_check_type         = "ELB"                               # Utiliser le Load Balancer pour la vérification de l'état de santé des instances
-  health_check_grace_period = 300                                # Délai entre le démarrage de l'instance et le début des vérifications de l'état de santé
+  health_check_grace_period = 300                                 # Délai entre le démarrage de l'instance et le début des vérifications de l'état de santé
   target_group_arns         = [aws_lb_target_group.nextcloud.arn] # Attacher les instances au Target Group du Load Balancer
 
   enabled_metrics = ["GroupInServiceInstances", "GroupTerminatingInstances"]

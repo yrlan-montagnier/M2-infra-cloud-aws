@@ -1,14 +1,14 @@
 data "aws_caller_identity" "current" {}
 
 resource "aws_s3_bucket" "nextcloud_bucket" {
-  bucket = "${local.user}-tp09-ex01-nextcloud-bucket" #Sans variable pour les minuscules
+  bucket = "${local.name}-nextcloud-bucket" #Sans variable pour les minuscules
 
   tags = {
-    Name        = "${local.name}-nextcloud"
+    Name = "${local.name}-nextcloud"
   }
 }
 
-resource aws_s3_bucket_server_side_encryption_configuration "nextcloud_bucket_sse" {
+resource "aws_s3_bucket_server_side_encryption_configuration" "nextcloud_bucket_sse" {
   bucket = aws_s3_bucket.nextcloud_bucket.bucket
 
   rule {
@@ -28,7 +28,8 @@ resource "aws_s3_bucket_policy" "nextcloud_bucket_policy" {
         Sid    = "AllowTerraformAdmin"
         Effect = "Allow"
         Principal = {
-          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/ymontagnier"
+          # AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/ymontagnier"
+          AWS = "arn:aws:iam::134400125759:user/users/ynov/ymontagnier"
         }
         Action = [
           "s3:ListBucket",

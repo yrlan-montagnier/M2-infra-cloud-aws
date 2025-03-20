@@ -1,5 +1,5 @@
 resource "aws_iam_role" "nextcloud_role" {
-  name = "${local.name}-nextcloud"
+  name = "${local.name}-nextcloud-iam-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -16,8 +16,8 @@ resource "aws_iam_role" "nextcloud_role" {
 }
 
 resource "aws_iam_role_policy" "nextcloud_role_policy" {
-  name   = "NextcloudS3AccessPolicy"
-  role   = aws_iam_role.nextcloud_role.id
+  name = "${local.name}-nextcloud-S3AccessPolicy"
+  role = aws_iam_role.nextcloud_role.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -46,6 +46,6 @@ resource "aws_iam_role_policy" "nextcloud_role_policy" {
 }
 
 resource "aws_iam_instance_profile" "nextcloud_instance_profile" {
-  name = "${local.name}-nextcloud"
+  name = "${local.name}-nextcloud-iam-instance-profile"
   role = aws_iam_role.nextcloud_role.name
 }

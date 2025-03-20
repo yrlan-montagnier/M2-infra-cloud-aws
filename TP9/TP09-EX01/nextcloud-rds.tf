@@ -2,7 +2,7 @@
 # Cette instance sera utilisée par Nextcloud pour stocker ses données.
 
 resource "aws_db_instance" "nextcloud_db" {
-  identifier             = "${local.user}-nextcloud-rds-instance"
+  identifier             = "${local.name}-nextcloud-rds"
   db_name                = "nextcloud"
   engine                 = "mysql"
   engine_version         = "8.0"
@@ -16,7 +16,7 @@ resource "aws_db_instance" "nextcloud_db" {
   publicly_accessible    = false
   skip_final_snapshot    = true
   tags = {
-    Name = "${local.name}-nextcloud-rds-instance"
+    Name = "${local.name}-nextcloud-rds"
   }
 }
 

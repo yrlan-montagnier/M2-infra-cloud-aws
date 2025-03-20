@@ -50,6 +50,8 @@ resource "aws_autoscaling_group" "nextcloud" {
   health_check_grace_period = 300                                # Délai entre le démarrage de l'instance et le début des vérifications de l'état de santé
   target_group_arns         = [aws_lb_target_group.nextcloud.arn] # Attacher les instances au Target Group du Load Balancer
 
+  enabled_metrics = ["GroupInServiceInstances", "GroupTerminatingInstances"]
+
   # Définition des tags pour l'Auto Scaling Group
   tag {
     key                 = "Owner"

@@ -1,6 +1,8 @@
 # M5-infra-cloud-aws
 
-Je travaille sur un projet AWS visant à déployer Nextcloud avec une architecture hautement disponible et évolutive, en utilisant un Auto Scaling Group (ASG).
+TP ici : https://akirosit1.gitlab.io/training-classes/infra-cloud/tp/
+
+Je travaille sur un projet AWS visant à déployer une architecture hautement disponible et évolutive dans AWS avec Terraform, ainsi qu'une application Nextcloud avec.
 
 L’objectif est d’assurer scalabilité, tolérance aux pannes et persistance des données en intégrant plusieurs services AWS.
 
